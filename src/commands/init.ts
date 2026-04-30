@@ -11,12 +11,15 @@ import { stdin as input, stdout as output } from "node:process";
 import readline from "node:readline/promises";
 import { CLAUDE_SETTINGS_FILE } from "../core/paths.js";
 import {
+  applyOtelEnv,
   buildPetforgeHookConfig,
   type ClaudeSettings,
   ClaudeSettingsInvalidJsonError,
   detectExistingPetforgeHooks,
+  detectOtelEnvConflicts,
   mergeHookConfig,
   readClaudeSettings,
+  stripOtelEnv,
   writeClaudeSettingsWithBackup,
 } from "../settings/claude-config.js";
 
@@ -25,6 +28,13 @@ export interface InitOptions {
   yes?: boolean;
   /** Override settings path (for tests). */
   settingsPath?: string;
+  // V2.0 — OTel env block management
+  /** Add the PetForge OTel env block to settings.json. */
+  otel?: boolean;
+  /** Remove the PetForge OTel env block from settings.json. */
+  noOtel?: boolean;
+  /** With `otel`, override conflicts on existing OTEL_* env keys. */
+  force?: boolean;
 }
 
 export interface InitResult {
@@ -33,9 +43,12 @@ export interface InitResult {
     | "ok-installed"
     | "ok-updated"
     | "skipped"
-    | "error-invalid-json";
+    | "error-invalid-json"
+    | "error-conflict";
   message: string;
   backupPath?: string | null;
+  /** Conflicting env keys, populated only on `error-conflict`. */
+  conflicts?: string[];
 }
 
 async function confirm(question: string): Promise<boolean> {
@@ -64,10 +77,32 @@ export async function runInit(opts: InitOptions = {}): Promise<InitResult> {
     throw err;
   }
 
+  // V2.0: detect OTel env conflicts before any work — fail fast.
+  if (opts.otel && !opts.force) {
+    const conflicts = detectOtelEnvConflicts(settings);
+    if (conflicts.length > 0) {
+      return {
+        status: "error-conflict",
+        message:
+          `Conflicting env entries found: ${conflicts.join(", ")}. ` +
+          "Re-run with --force to overwrite, or remove these from settings.json first.",
+        conflicts,
+      };
+    }
+  }
+
   const detection = detectExistingPetforgeHooks(settings);
 
-  // Already configured and unchanged across all 5 groups → no-op.
-  if (detection.found && detection.outdated.length === 0 && detection.groupsFound.length === 5) {
+  // Already configured and unchanged across all 5 groups → no-op …
+  // … but only when no OTel mutation was requested. Otherwise we still
+  // need to fall through to apply / strip the env block.
+  if (
+    detection.found &&
+    detection.outdated.length === 0 &&
+    detection.groupsFound.length === 5 &&
+    !opts.otel &&
+    !opts.noOtel
+  ) {
     return {
       status: "ok-already-configured",
       message: "PetForge hooks already registered in ~/.claude/settings.json. Nothing to do.",
@@ -94,7 +129,9 @@ export async function runInit(opts: InitOptions = {}): Promise<InitResult> {
     }
   }
 
-  const merged = mergeHookConfig(settings, buildPetforgeHookConfig());
+  let merged = mergeHookConfig(settings, buildPetforgeHookConfig());
+  if (opts.otel) merged = applyOtelEnv(merged);
+  if (opts.noOtel) merged = stripOtelEnv(merged);
   const backupPath = await writeClaudeSettingsWithBackup(merged, filePath);
   return {
     status: detection.found ? "ok-updated" : "ok-installed",
@@ -110,8 +147,15 @@ export async function runInit(opts: InitOptions = {}): Promise<InitResult> {
  */
 export async function initCli(argv: string[]): Promise<number> {
   const yes = argv.includes("--yes") || argv.includes("-y");
+  const force = argv.includes("--force");
+  const otel = argv.includes("--otel");
+  const noOtel = argv.includes("--no-otel");
+  if (otel && noOtel) {
+    process.stderr.write("--otel and --no-otel are mutually exclusive\n");
+    return 1;
+  }
   try {
-    const result = await runInit({ yes });
+    const result = await runInit({ yes, otel, noOtel, force });
     // `init` prints to stdout — it's interactive, unlike `hook`.
     process.stdout.write(`${result.message}\n`);
     if (result.backupPath) {

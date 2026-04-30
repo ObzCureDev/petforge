@@ -40,6 +40,12 @@ export interface ClaudeSettings {
     // unknown groups preserved
     [k: string]: ClaudeHookGroup[] | undefined;
   };
+  /**
+   * Claude Code reads `env` to inject environment variables into hook
+   * subprocess calls and the agent runtime. PetForge V2.0 uses this
+   * block to register OTel exporter settings.
+   */
+  env?: Record<string, unknown>;
   [k: string]: unknown;
 }
 
@@ -187,6 +193,60 @@ export function mergeHookConfig(
   }
 
   next.hooks = nextHooks;
+  return next;
+}
+
+/**
+ * The OTel env var block PetForge writes into ~/.claude/settings.json
+ * when the user runs `petforge init --otel`. Claude Code reads these to
+ * configure its OpenTelemetry exporter to point at the local collector.
+ */
+export const PETFORGE_OTEL_ENV: Record<string, string> = {
+  CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+  OTEL_METRICS_EXPORTER: "otlp",
+  OTEL_LOGS_EXPORTER: "otlp",
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:7879",
+  OTEL_METRIC_EXPORT_INTERVAL: "30000",
+};
+
+/**
+ * Returns the conflict report: keys present in settings.json's env block
+ * with non-PetForge values. If empty, --otel can apply without --force.
+ */
+export function detectOtelEnvConflicts(settings: ClaudeSettings | null): string[] {
+  const env = (settings?.env ?? {}) as Record<string, unknown>;
+  const conflicts: string[] = [];
+  for (const [k, expected] of Object.entries(PETFORGE_OTEL_ENV)) {
+    if (k in env && env[k] !== expected) conflicts.push(k);
+  }
+  return conflicts;
+}
+
+/**
+ * Returns settings with the PetForge OTel env block merged in. Unrelated
+ * env entries are preserved verbatim.
+ */
+export function applyOtelEnv(settings: ClaudeSettings | null): ClaudeSettings {
+  const next: ClaudeSettings = settings ? { ...settings } : {};
+  next.env = {
+    ...((next.env ?? {}) as Record<string, unknown>),
+    ...PETFORGE_OTEL_ENV,
+  };
+  return next;
+}
+
+/**
+ * Returns settings with PetForge OTel env keys removed (only those whose
+ * value still equals what we wrote). Unrelated env entries are preserved.
+ */
+export function stripOtelEnv(settings: ClaudeSettings | null): ClaudeSettings {
+  const next: ClaudeSettings = settings ? { ...settings } : {};
+  const env = { ...((next.env ?? {}) as Record<string, unknown>) };
+  for (const k of Object.keys(PETFORGE_OTEL_ENV)) {
+    if (env[k] === PETFORGE_OTEL_ENV[k]) delete env[k];
+  }
+  next.env = env;
   return next;
 }
 
