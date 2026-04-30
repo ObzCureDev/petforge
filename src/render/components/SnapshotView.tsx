@@ -1,0 +1,31 @@
+/**
+ * SnapshotView — the small, default `petforge` view.
+ *
+ * Shows the pet at a given animation frame plus the XP bar. Used both by
+ * the static non-TTY path and as the inner stage of the idle animation.
+ */
+
+import { Box, Text } from "ink";
+import type React from "react";
+import type { State } from "../../core/schema.js";
+import { PetRenderer } from "./PetRenderer.js";
+import { XpBar } from "./XpBar.js";
+
+export interface SnapshotViewProps {
+  state: State;
+  /** Animation frame counter; defaults to 0 (static frame). */
+  frameIndex?: number;
+}
+
+export function SnapshotView({ state, frameIndex = 0 }: SnapshotViewProps): React.ReactElement {
+  return (
+    <Box flexDirection="column">
+      <PetRenderer pet={state.pet} phase={state.progress.phase} frameIndex={frameIndex} />
+      <Text>
+        {state.pet.species.toUpperCase()} · {state.pet.rarity}
+        {state.pet.shiny ? " ✨ shiny" : ""}
+      </Text>
+      <XpBar progress={state.progress} />
+    </Box>
+  );
+}
