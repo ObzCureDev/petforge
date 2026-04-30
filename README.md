@@ -1,11 +1,20 @@
-# 🐾 PetForge
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./logos/petforge_logo_dark.webp">
+    <img alt="PetForge — ASCII RPG companion for AI coders" src="./logos/petforge_true_logo.webp" width="800">
+  </picture>
+</p>
 
-> **Local-first RPG progression layer for AI coding companions.**
-> Tracks your real coding activity through Claude Code hooks, adds XP, levels, achievements, and terminal-native evolutions.
+<p align="center">
+  <strong>Local-first RPG progression layer for AI coding companions.</strong><br>
+  Tracks your real coding activity through Claude Code hooks, adds XP, levels, achievements, and terminal-native evolutions.
+</p>
 
-[![Status](https://img.shields.io/badge/status-pre--MVP-orange)](./docs/superpowers/specs/2026-04-30-petforge-design.md)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
-[![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen)](https://nodejs.org)
+<p align="center">
+  <a href="./docs/superpowers/specs/2026-04-30-petforge-design.md"><img src="https://img.shields.io/badge/status-pre--MVP-orange" alt="Status"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="Node ≥ 20"></a>
+</p>
 
 ---
 
