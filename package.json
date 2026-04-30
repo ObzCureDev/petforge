@@ -1,0 +1,48 @@
+{
+  "name": "@mindvisionstudio/petforge",
+  "version": "0.0.0",
+  "description": "Local-first RPG progression layer for AI coding companions — tracks Claude Code activity through hooks and renders an evolving ASCII pet.",
+  "type": "module",
+  "bin": {
+    "petforge": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run check && npm run typecheck && npm run test && npm run build"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "figlet": "^1.11.0",
+    "ink": "^7.0.1",
+    "proper-lockfile": "^4.1.2",
+    "react": "^19.2.5",
+    "zod": "^4.4.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.13",
+    "@types/figlet": "^1.7.0",
+    "@types/node": "^25.6.0",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/react": "^19.2.14",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
