@@ -7,7 +7,7 @@
 
 import { Box, Text } from "ink";
 import type React from "react";
-import { parseBuddyCard, pickBuddyFrame } from "../../core/buddy.js";
+import { parseBuddyCard, pickBuddyFrame, stripBuddyStatLines } from "../../core/buddy.js";
 import type { State } from "../../core/schema.js";
 import { PetRenderer } from "./PetRenderer.js";
 import { XpBar } from "./XpBar.js";
@@ -19,10 +19,13 @@ export interface SnapshotViewProps {
 }
 
 export function SnapshotView({ state, frameIndex = 0 }: SnapshotViewProps): React.ReactElement {
-  const externalFrame = pickBuddyFrame(state);
-  const buddy = externalFrame ? parseBuddyCard(externalFrame) : undefined;
+  const rawFrame = pickBuddyFrame(state);
+  const buddy = rawFrame ? parseBuddyCard(rawFrame) : undefined;
   const headerName = buddy?.name?.toUpperCase() ?? state.pet.species.toUpperCase();
   const headerRarity = buddy?.rarity ?? state.pet.rarity;
+  const useBuddyStats = (buddy?.stats.length ?? 0) >= 3;
+  const externalFrame =
+    rawFrame !== undefined && useBuddyStats ? stripBuddyStatLines(rawFrame) : rawFrame;
   return (
     <Box flexDirection="column">
       <PetRenderer

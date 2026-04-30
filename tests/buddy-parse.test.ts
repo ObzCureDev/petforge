@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { extractBuddyStats, parseBuddyCard } from "../src/core/buddy.js";
+import { extractBuddyStats, parseBuddyCard, stripBuddyStatLines } from "../src/core/buddy.js";
 
 const FULL_BOXED_CARD = `╭──────────────────────────────────────╮
 │                                      │
@@ -128,5 +128,42 @@ describe("parseBuddyCard", () => {
     expect(r.rarity).toBe("uncommon");
     expect(r.species).toBeUndefined();
     expect(r.name).toBe("Buddy");
+  });
+});
+
+describe("stripBuddyStatLines", () => {
+  it("removes all 5 stat lines from the full boxed card", () => {
+    const stripped = stripBuddyStatLines(FULL_BOXED_CARD);
+    expect(stripped).not.toContain("DEBUGGING");
+    expect(stripped).not.toContain("PATIENCE");
+    expect(stripped).not.toContain("CHAOS");
+    expect(stripped).not.toContain("WISDOM");
+    expect(stripped).not.toContain("SNARK");
+    // Visual must remain intact.
+    expect(stripped).toContain(".----.");
+    expect(stripped).toContain("Huddle");
+    expect(stripped).toContain("OCTOPUS");
+  });
+
+  it("collapses 2+ consecutive empty box lines down to 1", () => {
+    const input = "│  content  │\n│          │\n│          │\n│          │\n╰──────────╯";
+    const stripped = stripBuddyStatLines(input);
+    // One empty box line should remain between content and bottom border.
+    const emptyCount = stripped
+      .split("\n")
+      .filter((l) => /^[\s│]*$/.test(l) && l.includes("│")).length;
+    expect(emptyCount).toBe(1);
+  });
+
+  it("is a no-op on input without stats", () => {
+    const visual = "   .----.\n  ( ° ° )\n  /\\/\\/\\/\\";
+    expect(stripBuddyStatLines(visual)).toBe(visual);
+  });
+
+  it("does not strip narrative text containing uppercase words", () => {
+    const input = "│  WISDOM is the goal here  │\n│  ABILITY ████░░ 50  │";
+    const stripped = stripBuddyStatLines(input);
+    expect(stripped).toContain("WISDOM is the goal");
+    expect(stripped).not.toContain("ABILITY");
   });
 });

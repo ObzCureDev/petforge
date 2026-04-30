@@ -207,6 +207,23 @@ const CLIENT_JS = `
     return String(n);
   }
 
+  function stripBuddyStatLines(cache) {
+    if (!cache) return cache;
+    var statRe = /^\\s*\\u2502?\\s*([A-Z][A-Z\\s]*?[A-Z]|[A-Z]{2,})\\s+[\\u2588\\u2591]+\\s+(\\d+)\\s*\\u2502?\\s*$/;
+    var emptyBoxRe = /^[\\s\\u2502]*$/;
+    var lines = String(cache).split("\\n").filter(function (l) { return !statRe.test(l); });
+    var out = [];
+    var prevEmpty = false;
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      var cur = emptyBoxRe.test(l) && l.indexOf("\\u2502") !== -1;
+      if (cur && prevEmpty) continue;
+      out.push(l);
+      prevEmpty = cur;
+    }
+    return out.join("\\n");
+  }
+
   function parseBuddyCard(cache) {
     if (!cache) return { stats: [] };
     var stats = [];
@@ -276,8 +293,10 @@ const CLIENT_JS = `
     var buddyOverride =
       s.buddy && s.buddy.userToggle === "on" && s.buddy.cardCache ? s.buddy.cardCache : null;
     var buddy = buddyOverride ? parseBuddyCard(buddyOverride) : { stats: [] };
-    var frame = buddyOverride
-      ? buddyOverride
+    var useBuddyStats = buddy.stats && buddy.stats.length >= 3;
+    var renderedBuddy = buddyOverride && useBuddyStats ? stripBuddyStatLines(buddyOverride) : buddyOverride;
+    var frame = renderedBuddy
+      ? renderedBuddy
       : (speciesFrames.length > 0 ? speciesFrames[frameIdx % speciesFrames.length] : "");
     pet.textContent = frame;
     var displayRarity = buddy.rarity || s.pet.rarity;
@@ -291,7 +310,6 @@ const CLIENT_JS = `
     byId("xp-fill").style.width = (prog.ratio * 100) + "%";
     byId("xp-label").textContent = "L" + s.progress.level + "  " + prog.label;
 
-    var useBuddyStats = buddy.stats && buddy.stats.length >= 3;
     var statsHtml = "";
     if (useBuddyStats) {
       for (var bi = 0; bi < buddy.stats.length; bi++) {

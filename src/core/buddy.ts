@@ -113,6 +113,32 @@ const BUDDY_RARITY_SPECIES_RE = /^([★✦✧☆]+)\s+([A-Z]+)\s+([A-Z]+)$/;
 const BUDDY_RARITY_ONLY_RE = /^([★✦✧☆]+)\s+([A-Z]{3,})$/;
 const BUDDY_NAME_RE = /^([A-Z][a-z][A-Za-z'-]+)$/;
 
+/**
+ * Remove stat lines from a Buddy card so they aren't rendered twice (once in
+ * the imported visual on the left, once in the parsed STATS panel on the
+ * right). Empty box-decoration lines that get exposed as "holes" by the
+ * removal are collapsed down to one to keep the box tight.
+ *
+ * Pure string transform — does not parse.
+ */
+export function stripBuddyStatLines(cardCache: string): string {
+  const lines = cardCache.split("\n");
+  const isStat = (l: string): boolean => BUDDY_STAT_LINE_RE.test(l);
+  const isEmptyBox = (l: string): boolean => /^[\s│]*$/.test(l) && l.includes("│");
+
+  const withoutStats = lines.filter((l) => !isStat(l));
+
+  const out: string[] = [];
+  let prevEmpty = false;
+  for (const l of withoutStats) {
+    const cur = isEmptyBox(l);
+    if (cur && prevEmpty) continue;
+    out.push(l);
+    prevEmpty = cur;
+  }
+  return out.join("\n");
+}
+
 export function parseBuddyCard(cardCache: string): BuddyParse {
   const stats = extractBuddyStats(cardCache);
   let name: string | undefined;
