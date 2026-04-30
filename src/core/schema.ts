@@ -23,6 +23,7 @@ export const BUDDY_TOGGLES = ["auto", "on", "off"] as const;
 export type BuddyToggle = (typeof BUDDY_TOGGLES)[number];
 
 export const ACHIEVEMENT_IDS = [
+  // V1
   "hatch",
   "first_tool",
   "marathon",
@@ -33,6 +34,15 @@ export const ACHIEVEMENT_IDS = [
   "refactor_master",
   "tool_whisperer",
   "centurion",
+  // V2.0 (OTel-gated)
+  "code_architect",
+  "code_titan",
+  "token_whisperer_v2",
+  "cache_lord",
+  "frugal_coder",
+  "big_spender",
+  "pr_machine",
+  "picky_reviewer",
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
 

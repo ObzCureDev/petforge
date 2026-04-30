@@ -62,6 +62,15 @@ export const ACHIEVEMENTS: Readonly<Record<AchievementId, AchievementDef>> = {
   refactor_master: { id: "refactor_master", name: "Refactor Master", xp: 2_000 },
   tool_whisperer: { id: "tool_whisperer", name: "Tool Whisperer", xp: 3_000 },
   centurion: { id: "centurion", name: "Centurion", xp: 5_000 },
+  // V2.0 (OTel-gated)
+  code_architect: { id: "code_architect", name: "Code Architect", xp: 3_000 },
+  code_titan: { id: "code_titan", name: "Code Titan", xp: 10_000 },
+  token_whisperer_v2: { id: "token_whisperer_v2", name: "Token Whisperer ⚡", xp: 3_000 },
+  cache_lord: { id: "cache_lord", name: "Cache Lord", xp: 2_500 },
+  frugal_coder: { id: "frugal_coder", name: "Frugal Coder", xp: 1_500 },
+  big_spender: { id: "big_spender", name: "Big Spender", xp: 2_000 },
+  pr_machine: { id: "pr_machine", name: "PR Machine", xp: 3_000 },
+  picky_reviewer: { id: "picky_reviewer", name: "Picky Reviewer", xp: 1_500 },
 } as const;
 
 // ---------- Core helpers ----------
