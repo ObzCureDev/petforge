@@ -137,6 +137,42 @@ To opt out: `petforge buddy off` — falls back to the local PetForge engine.
 
 ---
 
+## Troubleshooting
+
+**My pet doesn't seem to gain XP.**
+Run `petforge doctor`. The most common cause is hooks not installed yet — run `petforge init`.
+
+**`petforge init` says my settings.json has invalid JSON.**
+PetForge refuses to overwrite a malformed settings file. Open `~/.claude/settings.json` and fix the JSON, or delete the file (PetForge will create a new one).
+
+**I see `petforge` errors when Claude is running.**
+Hook errors are logged to `~/.petforge/hook-errors.log`. PetForge hooks are designed to never crash Claude Code — every error path exits 0. If you see issues, share the log file.
+
+**I want to reset my pet.**
+Delete `~/.petforge/state.json`. Your pet will respawn deterministically on the next hook invocation (same species/rarity/stats — they're derived from your username + hostname).
+
+**I don't have Claude Buddy.**
+That's fine — PetForge runs the local engine when Buddy isn't detected. Run `petforge buddy off` to skip detection entirely.
+
+**My terminal doesn't show ANSI colors / box characters correctly.**
+Make sure your terminal supports UTF-8 + truecolor (most modern terminals do). On Windows, use Windows Terminal or VS Code's integrated terminal.
+
+---
+
+## Privacy
+
+PetForge is **fully local**:
+- No network calls, ever
+- No analytics, no telemetry, no phone-home
+- No account, no signup
+- Your state lives at `~/.petforge/state.json` and only there
+- The pet engine derives your creature from `sha256(username + hostname)` locally
+- Buddy integration (when enabled) invokes the local `claude` CLI — PetForge never reads internal Claude files
+
+**No Anthropic content is copied or redistributed.** PetForge ships its own assets and only invokes Claude Buddy as a stdout consumer at runtime.
+
+---
+
 ## Development
 
 ```bash
