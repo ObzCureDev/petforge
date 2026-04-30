@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { buddyCli } from "./commands/buddy.js";
 import { cardCli } from "./commands/card.js";
+import { collectCli } from "./commands/collect.js";
 import { defaultCli } from "./commands/default.js";
 import { doctorCli } from "./commands/doctor.js";
 import { hookCli } from "./commands/hook.js";
@@ -44,6 +45,8 @@ async function main(): Promise<number> {
     console.log("              Show or set Buddy integration mode");
     console.log("  serve       Stream the pet over HTTP for browser/phone viewing");
     console.log("              (--port=7878 --lan --token=XXX)");
+    console.log("  collect     Run the OTLP collector (foreground daemon, port 7879)");
+    console.log("              (--port=N --forward=URL)");
     console.log("  hook        Internal: process a Claude Code hook event from stdin");
     console.log("  --version   Show version");
     return 0;
@@ -74,6 +77,9 @@ async function main(): Promise<number> {
   }
   if (cmd === "serve") {
     return await serveCli(args.slice(1));
+  }
+  if (cmd === "collect") {
+    return await collectCli(args.slice(1));
   }
   if (cmd === "hook") {
     return await hookCli(args.slice(1));
