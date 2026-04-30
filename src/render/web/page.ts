@@ -131,7 +131,7 @@ const CSS = `
     margin: 1rem 0 0.5rem;
   }
   .stat { display: flex; align-items: center; gap: 0.5rem; margin: 0.25rem 0; }
-  .stat-name { width: 4em; opacity: 0.8; }
+  .stat-name { width: 6em; opacity: 0.8; font-size: 0.85rem; }
   .stat-bar {
     flex: 1;
     background: #21262d;
@@ -207,6 +207,41 @@ const CLIENT_JS = `
     return String(n);
   }
 
+  function parseBuddyCard(cache) {
+    if (!cache) return { stats: [] };
+    var stats = [];
+    var statRe = /^\\s*\\u2502?\\s*([A-Z][A-Z\\s]*?[A-Z]|[A-Z]{2,})\\s+[\\u2588\\u2591]+\\s+(\\d+)\\s*\\u2502?\\s*$/;
+    var raritySpeciesRe = /^([\\u2605\\u2606\\u2726\\u2727]+)\\s+([A-Z]+)\\s+([A-Z]+)$/;
+    var rarityOnlyRe = /^([\\u2605\\u2606\\u2726\\u2727]+)\\s+([A-Z]{3,})$/;
+    var nameRe = /^([A-Z][a-z][A-Za-z'-]+)$/;
+    var name, species, rarity, rarityStars;
+    var lines = String(cache).split("\\n");
+    for (var i = 0; i < lines.length; i++) {
+      var raw = lines[i];
+      var ms = statRe.exec(raw);
+      if (ms) {
+        var v = parseInt(ms[2], 10);
+        if (isFinite(v) && v >= 0 && v <= 100) {
+          stats.push({ name: ms[1].replace(/\\s+/g, " ").trim(), value: v });
+        }
+        continue;
+      }
+      var line = raw.replace(/^[\\s\\u2502]+/, "").replace(/[\\s\\u2502]+$/, "");
+      if (line.length === 0) continue;
+      if (rarity === undefined) {
+        var both = raritySpeciesRe.exec(line);
+        if (both) { rarityStars = both[1].length; rarity = both[2].toLowerCase(); species = both[3]; continue; }
+        var only = rarityOnlyRe.exec(line);
+        if (only) { rarityStars = only[1].length; rarity = only[2].toLowerCase(); continue; }
+      }
+      if (name === undefined) {
+        var nm = nameRe.exec(line);
+        if (nm) { name = nm[1]; continue; }
+      }
+    }
+    return { name: name, species: species, rarity: rarity, rarityStars: rarityStars, stats: stats };
+  }
+
   function nextLevelProgress(xp, level) {
     if (level >= 100) {
       return { ratio: 1, isMaxed: true, label: "MAX (" + xp.toLocaleString() + " xp)" };
@@ -240,31 +275,46 @@ const CLIENT_JS = `
     var speciesFrames = (FRAMES[species] && FRAMES[species][phase]) || [];
     var buddyOverride =
       s.buddy && s.buddy.userToggle === "on" && s.buddy.cardCache ? s.buddy.cardCache : null;
+    var buddy = buddyOverride ? parseBuddyCard(buddyOverride) : { stats: [] };
     var frame = buddyOverride
       ? buddyOverride
       : (speciesFrames.length > 0 ? speciesFrames[frameIdx % speciesFrames.length] : "");
     pet.textContent = frame;
-    pet.className = "pet phase-" + phase + " rarity-" + s.pet.rarity + (s.pet.shiny ? " shiny" : "");
+    var displayRarity = buddy.rarity || s.pet.rarity;
+    pet.className = "pet phase-" + phase + " rarity-" + displayRarity + (s.pet.shiny ? " shiny" : "");
 
-    byId("species").textContent = species;
-    byId("rarity").textContent = s.pet.rarity;
+    byId("species").textContent = (buddy.name || species).toUpperCase();
+    byId("rarity").textContent = displayRarity;
     byId("shiny").hidden = !s.pet.shiny;
 
     var prog = nextLevelProgress(s.progress.xp, s.progress.level);
     byId("xp-fill").style.width = (prog.ratio * 100) + "%";
     byId("xp-label").textContent = "L" + s.progress.level + "  " + prog.label;
 
-    var statKeys = ["focus", "grit", "flow", "craft", "spark"];
+    var useBuddyStats = buddy.stats && buddy.stats.length >= 3;
     var statsHtml = "";
-    for (var i = 0; i < statKeys.length; i++) {
-      var k = statKeys[i];
-      var v = s.pet.stats[k];
-      var pct = Math.max(0, Math.min(100, v));
-      statsHtml += '<div class="stat">';
-      statsHtml += '<span class="stat-name">' + k.toUpperCase() + '</span>';
-      statsHtml += '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + pct + '%"></div></div>';
-      statsHtml += '<span class="stat-val">' + v + '</span>';
-      statsHtml += '</div>';
+    if (useBuddyStats) {
+      for (var bi = 0; bi < buddy.stats.length; bi++) {
+        var bs = buddy.stats[bi];
+        var bpct = Math.max(0, Math.min(100, bs.value));
+        statsHtml += '<div class="stat">';
+        statsHtml += '<span class="stat-name">' + bs.name + '</span>';
+        statsHtml += '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + bpct + '%"></div></div>';
+        statsHtml += '<span class="stat-val">' + bs.value + '</span>';
+        statsHtml += '</div>';
+      }
+    } else {
+      var statKeys = ["focus", "grit", "flow", "craft", "spark"];
+      for (var i = 0; i < statKeys.length; i++) {
+        var k = statKeys[i];
+        var v = s.pet.stats[k];
+        var pct = Math.max(0, Math.min(100, v));
+        statsHtml += '<div class="stat">';
+        statsHtml += '<span class="stat-name">' + k.toUpperCase() + '</span>';
+        statsHtml += '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + pct + '%"></div></div>';
+        statsHtml += '<span class="stat-val">' + v + '</span>';
+        statsHtml += '</div>';
+      }
     }
     byId("stats").innerHTML = statsHtml;
 

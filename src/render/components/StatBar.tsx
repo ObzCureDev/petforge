@@ -14,15 +14,22 @@ export interface StatBarProps {
   value: number;
   /** Bar width in chars; defaults to 10. */
   width?: number;
+  /** Name column width in chars; defaults to 7 (PetForge stats). */
+  namePad?: number;
 }
 
-export function StatBar({ name, value, width = 10 }: StatBarProps): React.ReactElement {
+export function StatBar({
+  name,
+  value,
+  width = 10,
+  namePad = 7,
+}: StatBarProps): React.ReactElement {
   const clamped = Math.max(0, Math.min(100, value));
   const filled = Math.round((clamped / 100) * width);
   const bar = "█".repeat(filled) + "░".repeat(width - filled);
   return (
     <Box>
-      <Text>{name.padEnd(7)}</Text>
+      <Text>{name.padEnd(namePad)}</Text>
       <Text color="green">{bar}</Text>
       <Text> {value}</Text>
     </Box>

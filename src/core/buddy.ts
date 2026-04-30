@@ -42,6 +42,116 @@ export function pickBuddyFrame(state: State): string | undefined {
   return undefined;
 }
 
+export interface BuddyStat {
+  name: string;
+  value: number;
+}
+
+export interface BuddyParse {
+  /** Buddy's individual name (e.g. "Huddle"). Single Title-Case token. */
+  name?: string;
+  /** Buddy's species/type (e.g. "OCTOPUS"). Always uppercased. */
+  species?: string;
+  /**
+   * Lowercase rarity word as found in the card (e.g. "rare", "legendary").
+   * Maps 1:1 to PetForge's rarity vocabulary when the words match.
+   */
+  rarity?: string;
+  /** Number of `★` symbols in the rarity line (visual indicator). */
+  rarityStars?: number;
+  /** Stat lines parsed from the card, possibly empty. */
+  stats: BuddyStat[];
+}
+
+/**
+ * Parse 0..N "stat" lines out of an imported Buddy card. The shape is
+ *
+ *   [optional ` │ `]  NAME  [█░]+  NUMBER  [optional ` │ `]
+ *
+ * which matches both the boxed Anthropic /buddy card output (with `│`
+ * borders) and a plain stripped variant. NAME must be at least two
+ * uppercase letters; VALUE must be a 0..100 integer. Lines that don't
+ * match are ignored — so the parser is lossless for non-stat content.
+ *
+ * Callers should treat fewer than 3 hits as "no stat block" to avoid
+ * accidental matches in narrative text.
+ */
+const BUDDY_STAT_LINE_RE = /^\s*│?\s*([A-Z][A-Z\s]*?[A-Z]|[A-Z]{2,})\s+[█░]+\s+(\d+)\s*│?\s*$/;
+
+export function extractBuddyStats(cardCache: string): BuddyStat[] {
+  const out: BuddyStat[] = [];
+  for (const line of cardCache.split("\n")) {
+    const m = BUDDY_STAT_LINE_RE.exec(line);
+    if (!m?.[1] || !m[2]) continue;
+    const name = m[1].trim().replace(/\s+/g, " ");
+    const value = Number.parseInt(m[2], 10);
+    if (!Number.isFinite(value) || value < 0 || value > 100) continue;
+    out.push({ name, value });
+  }
+  return out;
+}
+
+/**
+ * Parse name / species / rarity / stats out of an imported Buddy card.
+ *
+ * The format produced by Anthropic's `/buddy card` is roughly:
+ *
+ *   ╭───────────────╮
+ *   │  ★★★ RARE          OCTOPUS  │   ← rarity stars + word + species
+ *   │     .----.                  │   ← visual
+ *   │     ( o o )                 │
+ *   │  Huddle                     │   ← Buddy's individual name
+ *   │  "..."                      │   ← description (skipped)
+ *   │  DEBUGGING  ████░  75       │   ← stats
+ *   ╰───────────────╯
+ *
+ * The parser is intentionally tolerant: any subset of fields may be
+ * present (e.g. a stripped-down import with just the visual + name still
+ * yields `name`). Lines that don't match any pattern are ignored.
+ */
+const BUDDY_RARITY_SPECIES_RE = /^([★✦✧☆]+)\s+([A-Z]+)\s+([A-Z]+)$/;
+const BUDDY_RARITY_ONLY_RE = /^([★✦✧☆]+)\s+([A-Z]{3,})$/;
+const BUDDY_NAME_RE = /^([A-Z][a-z][A-Za-z'-]+)$/;
+
+export function parseBuddyCard(cardCache: string): BuddyParse {
+  const stats = extractBuddyStats(cardCache);
+  let name: string | undefined;
+  let species: string | undefined;
+  let rarity: string | undefined;
+  let rarityStars: number | undefined;
+
+  for (const rawLine of cardCache.split("\n")) {
+    // Strip leading/trailing box borders + whitespace for matching.
+    const line = rawLine.replace(/^[\s│]+/, "").replace(/[\s│]+$/, "");
+    if (line.length === 0) continue;
+
+    if (rarity === undefined) {
+      const both = BUDDY_RARITY_SPECIES_RE.exec(line);
+      if (both?.[1] && both[2] && both[3]) {
+        rarityStars = both[1].length;
+        rarity = both[2].toLowerCase();
+        species = both[3];
+        continue;
+      }
+      const only = BUDDY_RARITY_ONLY_RE.exec(line);
+      if (only?.[1] && only[2]) {
+        rarityStars = only[1].length;
+        rarity = only[2].toLowerCase();
+        continue;
+      }
+    }
+
+    if (name === undefined) {
+      const m = BUDDY_NAME_RE.exec(line);
+      if (m?.[1]) {
+        name = m[1];
+      }
+    }
+  }
+
+  return { name, species, rarity, rarityStars, stats };
+}
+
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 
 /**
