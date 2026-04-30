@@ -78,6 +78,7 @@ export function renderPage(state: State | null): string {
     <ul id="achievements"></ul>
   </section>
   <p id="activity" class="activity"></p>
+  <p id="otel-activity" class="activity" hidden></p>
   <p id="status" class="status"></p>
 </main>
 <script id="initial-state" type="application/json">${initialState}</script>
@@ -199,6 +200,13 @@ const CLIENT_JS = `
     return Math.floor(lower.xp + (upper.xp - lower.xp) * curved);
   }
 
+  function compact(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+    return String(n);
+  }
+
   function nextLevelProgress(xp, level) {
     if (level >= 100) {
       return { ratio: 1, isMaxed: true, label: "MAX (" + xp.toLocaleString() + " xp)" };
@@ -272,6 +280,20 @@ const CLIENT_JS = `
       " · Streak: " + s.counters.streakDays + "d" +
       " · Prompts: " + s.counters.promptsTotal +
       " · Tools: " + s.counters.toolUseTotal;
+
+    var o = s.counters && s.counters.otel;
+    var otelEl = byId("otel-activity");
+    if (o && o.lastUpdate > 0) {
+      var lines = "+" + (o.linesAdded || 0).toLocaleString() + " / -" + (o.linesRemoved || 0).toLocaleString();
+      var tokens = compact((o.tokensIn || 0) + (o.tokensOut || 0));
+      var cost = "$" + ((o.costUsdCents || 0) / 100).toFixed(2);
+      var cv = (o.tokensIn || 0) + (o.tokensCacheRead || 0);
+      var cachePct = cv > 0 ? Math.round((o.tokensCacheRead / cv) * 100) : 0;
+      otelEl.textContent = "Lines: " + lines + " · Tokens: " + tokens + " · Cost: " + cost + " · Cache: " + cachePct + "%";
+      otelEl.hidden = false;
+    } else {
+      otelEl.hidden = true;
+    }
     byId("status").textContent = "live · phase: " + phase;
   }
 

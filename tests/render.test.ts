@@ -304,6 +304,53 @@ describe("non-TTY default command path", () => {
   });
 });
 
+describe("ActivityBlock OTel line", () => {
+  it("renders OTel line when otel.lastUpdate > 0", async () => {
+    const { render } = await import("ink-testing-library");
+    const { ActivityBlock } = await import("../src/render/components/ActivityBlock.js");
+    const { createInitialState } = await import("../src/core/schema.js");
+    const { generatePet } = await import("../src/core/pet-engine.js");
+
+    const pet = generatePet({ username: "u", hostname: "h" });
+    const state = createInitialState(pet, 0);
+    const otel = state.counters.otel;
+    if (!otel) throw new Error("otel block missing in seeded state");
+    otel.linesAdded = 1234;
+    otel.linesRemoved = 56;
+    otel.tokensIn = 800_000;
+    otel.tokensOut = 200_000;
+    otel.tokensCacheRead = 600_000;
+    otel.costUsdCents = 430;
+    otel.lastUpdate = Date.now();
+
+    const { lastFrame, unmount } = render(React.createElement(ActivityBlock, { state }));
+    const out = lastFrame() ?? "";
+    expect(out).toMatch(/Lines: \+1,234 \/ -56/);
+    expect(out).toMatch(/Tokens: 1\.0M/);
+    expect(out).toMatch(/Cost: \$4\.30/);
+    expect(out).toMatch(/Cache: 43%/);
+    unmount();
+  });
+
+  it("hides OTel line when otel.lastUpdate === 0", async () => {
+    const { render } = await import("ink-testing-library");
+    const { ActivityBlock } = await import("../src/render/components/ActivityBlock.js");
+    const { createInitialState } = await import("../src/core/schema.js");
+    const { generatePet } = await import("../src/core/pet-engine.js");
+
+    const pet = generatePet({ username: "u", hostname: "h" });
+    const state = createInitialState(pet, 0);
+
+    const { lastFrame, unmount } = render(React.createElement(ActivityBlock, { state }));
+    const out = lastFrame() ?? "";
+    expect(out).not.toMatch(/Lines:/);
+    expect(out).not.toMatch(/Tokens:/);
+    // V1 line still present
+    expect(out).toMatch(/Sessions: /);
+    unmount();
+  });
+});
+
 describe("WatchView", () => {
   it("renders the pet snapshot and the activity block on initial mount", async () => {
     const { render } = await import("ink-testing-library");
