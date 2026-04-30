@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod";
+import { createInitialOtelCounters, type OtelCounters, OtelCountersSchema } from "./otel/schema.js";
 
 // ---------- Enums ----------
 
@@ -82,6 +83,8 @@ export interface Counters {
   lastActiveDate: string;
   /** Events in [22h, 02h) local. */
   nightOwlEvents: number;
+  /** V2.0 OTel-derived counters (optional for V1.x state migration). */
+  otel?: OtelCounters;
 }
 
 export interface Achievements {
@@ -158,6 +161,7 @@ export const CountersSchema = z.object({
   streakDays: z.number(),
   lastActiveDate: z.string(),
   nightOwlEvents: z.number(),
+  otel: OtelCountersSchema.optional(),
 });
 
 export const AchievementsSchema = z.object({
@@ -212,6 +216,7 @@ export function createInitialState(pet: Pet, now: number = Date.now()): State {
       streakDays: 0,
       lastActiveDate: "",
       nightOwlEvents: 0,
+      otel: createInitialOtelCounters(),
     },
     achievements: {
       unlocked: [],
@@ -227,4 +232,21 @@ export function createInitialState(pet: Pet, now: number = Date.now()): State {
       updatedAt: now,
     },
   };
+}
+
+// ---------- V1.x → V2.0 migration ----------
+
+/**
+ * Ensure `state.counters.otel` is populated.
+ *
+ * V1.x state files do not contain the `otel` block. After loading + validating
+ * a state via `StateSchema` (which keeps `otel` optional), call this to
+ * synthesize a fresh, all-zero `OtelCounters` if absent. Subsequent OTel-gated
+ * achievement evaluation gates on `otel.lastUpdate > 0`, so a freshly
+ * synthesized block is correctly inert until the collector ingests data.
+ */
+export function ensureOtelCounters(state: State): void {
+  if (!state.counters.otel) {
+    state.counters.otel = createInitialOtelCounters();
+  }
 }
