@@ -87,8 +87,34 @@ export async function runDoctor(): Promise<{ checks: CheckResult[]; exitCode: nu
   checks.push(await checkCollectorReachable());
   checks.push(await checkRecentOtelIngest());
 
+  // V2.0.1 — detect "many prompts but 0 sessions" pattern (SessionStart/End
+  // hooks not firing on this Claude Code version). Warning, never critical.
+  checks.push(await checkSessionHooksFiring());
+
   const criticalFails = checks.filter((c) => !c.ok && !c.warning);
   return { checks, exitCode: criticalFails.length === 0 ? 0 : 1 };
+}
+
+async function checkSessionHooksFiring(): Promise<CheckResult> {
+  try {
+    const { readState } = await import("../core/state.js");
+    const state = await readState();
+    const prompts = state.counters.promptsTotal;
+    const sessions = state.counters.sessionsTotal;
+    if (prompts > 50 && sessions === 0) {
+      return {
+        name: "SessionStart / SessionEnd hooks firing",
+        ok: false,
+        warning: true,
+        detail:
+          `${prompts} prompts but 0 sessions ended — your Claude Code version may not fire SessionStart/SessionEnd. ` +
+          "Polyglot / Refactor Master / Marathon are still reachable via lazy-init (since v2.0.1).",
+      };
+    }
+    return { name: "SessionStart / SessionEnd hooks firing", ok: true };
+  } catch {
+    return { name: "SessionStart / SessionEnd hooks firing", ok: false, warning: true };
+  }
 }
 
 async function checkOtelEnv(): Promise<CheckResult> {

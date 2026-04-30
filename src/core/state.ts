@@ -57,6 +57,39 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
+const RETRYABLE_RENAME_CODES = new Set(["EPERM", "EBUSY", "ENOENT", "EACCES"]);
+const RENAME_RETRY_DELAYS_MS = [50, 150, 400] as const;
+
+/**
+ * `fs.rename` retry helper for Windows-specific transient failures.
+ *
+ * Antivirus (Defender), file-sync indexers (OneDrive), and other shell
+ * services sometimes hold a brief handle on the destination right after
+ * write, causing EPERM on the atomic rename. We retry with exponential
+ * backoff before giving up.
+ *
+ * Total wait if all 3 retries fail: ~600ms — well under hook timeout (1s).
+ */
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= RENAME_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      await fs.rename(from, to);
+      return;
+    } catch (err) {
+      lastError = err;
+      const code = (err as NodeJS.ErrnoException).code;
+      if (attempt === RENAME_RETRY_DELAYS_MS.length || !code || !RETRYABLE_RENAME_CODES.has(code)) {
+        throw err;
+      }
+      const delay = RENAME_RETRY_DELAYS_MS[attempt] ?? 400;
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  // unreachable; satisfy TS
+  throw lastError;
+}
+
 // ---------- Public API ----------
 
 export async function ensurePetforgeDir(): Promise<void> {
@@ -114,7 +147,7 @@ export async function writeStateAtomic(state: State): Promise<void> {
   } finally {
     await fd.close();
   }
-  await fs.rename(tmp, STATE_FILE);
+  await renameWithRetry(tmp, STATE_FILE);
 }
 
 /**

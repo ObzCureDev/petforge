@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.1 — 2026-04-30
+
+### Fixes
+- **Windows EPERM rename retry**: hooks no longer lose XP when Windows Defender / OneDrive / antivirus briefly holds a handle on `state.json` post-write. `fs.rename` now retries on `EPERM` / `EBUSY` / `ENOENT` / `EACCES` with exponential backoff (50ms / 150ms / 400ms, max 4 attempts in ~600ms — within the hook 1s timeout).
+- **Lazy `activeSessions` init**: per-session achievements (Polyglot, Refactor Master, Marathon) now reachable on Claude Code versions where `SessionStart` / `SessionEnd` hooks don't fire. The `prompt` and `post_tool_use` handlers now create an `activeSessions[sessionId]` entry on demand if absent.
+- **Auto-prune stale activeSessions**: entries with `startTs` older than 24h are removed on every hook event, preventing unbounded growth when `SessionEnd` never fires.
+- **Doctor warning**: detects the "many prompts but 0 sessions" pattern and surfaces it as a warning so the user understands what's happening.
+
+### No breaking changes
+State schema, achievement IDs, hook payloads — all unchanged.
+
 ## 2.0.0 — 2026-04-30
 
 ### Features

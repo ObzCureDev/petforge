@@ -269,3 +269,89 @@ describe("state", () => {
     await expect(fs.access(paths.LOCK_FILE)).resolves.toBeUndefined();
   });
 });
+
+describe("renameWithRetry (via writeStateAtomic)", () => {
+  it("succeeds on first try when fs.rename works", async () => {
+    const { paths, petEngine, schema, state } = await loadModules();
+    await state.ensurePetforgeDir();
+    const s = schema.createInitialState(testPet(petEngine), 1700000000000);
+
+    const fsMod = await import("node:fs");
+    const renameSpy = vi.spyOn(fsMod.promises, "rename");
+
+    try {
+      await state.writeStateAtomic(s);
+      expect(renameSpy).toHaveBeenCalledTimes(1);
+      const onDisk = JSON.parse(await fs.readFile(paths.STATE_FILE, "utf8"));
+      expect(onDisk.schemaVersion).toBe(1);
+    } finally {
+      renameSpy.mockRestore();
+    }
+  });
+
+  it("retries on EPERM and eventually succeeds", async () => {
+    const { petEngine, schema, state } = await loadModules();
+    await state.ensurePetforgeDir();
+    const s = schema.createInitialState(testPet(petEngine), 1700000000000);
+
+    const fsMod = await import("node:fs");
+    const realRename = fsMod.promises.rename.bind(fsMod.promises);
+    let calls = 0;
+    const renameSpy = vi.spyOn(fsMod.promises, "rename").mockImplementation(async (from, to) => {
+      calls++;
+      if (calls <= 2) {
+        const err = new Error("EPERM: operation not permitted") as NodeJS.ErrnoException;
+        err.code = "EPERM";
+        throw err;
+      }
+      return realRename(from, to);
+    });
+
+    try {
+      await state.writeStateAtomic(s);
+      expect(renameSpy).toHaveBeenCalledTimes(3);
+    } finally {
+      renameSpy.mockRestore();
+    }
+  });
+
+  it("gives up after 3 retries on persistent EPERM", async () => {
+    const { petEngine, schema, state } = await loadModules();
+    await state.ensurePetforgeDir();
+    const s = schema.createInitialState(testPet(petEngine), 1700000000000);
+
+    const fsMod = await import("node:fs");
+    const renameSpy = vi.spyOn(fsMod.promises, "rename").mockImplementation(async () => {
+      const err = new Error("EPERM: operation not permitted") as NodeJS.ErrnoException;
+      err.code = "EPERM";
+      throw err;
+    });
+
+    try {
+      await expect(state.writeStateAtomic(s)).rejects.toThrow(/EPERM/);
+      expect(renameSpy).toHaveBeenCalledTimes(4);
+    } finally {
+      renameSpy.mockRestore();
+    }
+  });
+
+  it("does not retry on non-retryable errors (e.g., ENOSPC)", async () => {
+    const { petEngine, schema, state } = await loadModules();
+    await state.ensurePetforgeDir();
+    const s = schema.createInitialState(testPet(petEngine), 1700000000000);
+
+    const fsMod = await import("node:fs");
+    const renameSpy = vi.spyOn(fsMod.promises, "rename").mockImplementation(async () => {
+      const err = new Error("ENOSPC: no space left on device") as NodeJS.ErrnoException;
+      err.code = "ENOSPC";
+      throw err;
+    });
+
+    try {
+      await expect(state.writeStateAtomic(s)).rejects.toThrow(/ENOSPC/);
+      expect(renameSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      renameSpy.mockRestore();
+    }
+  });
+});

@@ -267,6 +267,70 @@ describe("applyHookEvent (pure)", () => {
     expect(s.counters.activeSessions.sB?.toolUseCount).toBe(2);
     expect(s.counters.activeSessions.sB?.fileExtensions).toEqual([".md", ".json"]);
   });
+
+  it("post_tool_use lazy-creates activeSessions[sid] when session_start never fired", async () => {
+    const { hook, petEngine, schema } = await loadModules();
+    const s = schema.createInitialState(testPet(petEngine), 0);
+    // No session_start fired — activeSessions is empty
+    expect(s.counters.activeSessions).toEqual({});
+
+    hook.applyHookEvent(
+      s,
+      "post_tool_use",
+      { session_id: "sid-1", tool_name: "Edit", tool_input: { file_path: "src/a.ts" } },
+      1000,
+    );
+
+    expect(s.counters.activeSessions["sid-1"]).toBeDefined();
+    expect(s.counters.activeSessions["sid-1"]?.toolUseCount).toBe(1);
+    expect(s.counters.activeSessions["sid-1"]?.fileExtensions).toContain(".ts");
+  });
+
+  it("prompt lazy-creates activeSessions[sid] when session_start never fired", async () => {
+    const { hook, petEngine, schema } = await loadModules();
+    const s = schema.createInitialState(testPet(petEngine), 0);
+    hook.applyHookEvent(s, "prompt", { session_id: "sid-2" }, 1000);
+    expect(s.counters.activeSessions["sid-2"]).toBeDefined();
+  });
+
+  it("Polyglot becomes reachable without session_start when 5 extensions accumulate via post_tool_use lazy-init", async () => {
+    const { hook, petEngine, schema } = await loadModules();
+    const s = schema.createInitialState(testPet(petEngine), 0);
+    const exts = [".ts", ".tsx", ".md", ".json", ".sh"];
+    for (const ext of exts) {
+      hook.applyHookEvent(
+        s,
+        "post_tool_use",
+        { session_id: "sid", tool_name: "Edit", tool_input: { file_path: `x${ext}` } },
+        1000,
+      );
+    }
+    expect(s.achievements.unlocked).toContain("polyglot");
+  });
+
+  it("prunes activeSessions older than 24h on any hook event", async () => {
+    const { hook, petEngine, schema } = await loadModules();
+    const now = Date.now();
+    const stale = now - 25 * 60 * 60 * 1000; // 25h ago
+    const fresh = now - 1 * 60 * 60 * 1000; // 1h ago
+
+    const s = schema.createInitialState(testPet(petEngine), 0);
+    s.counters.activeSessions.stale = {
+      startTs: stale,
+      toolUseCount: 5,
+      fileExtensions: [],
+    };
+    s.counters.activeSessions.fresh = {
+      startTs: fresh,
+      toolUseCount: 5,
+      fileExtensions: [],
+    };
+
+    hook.applyHookEvent(s, "prompt", { session_id: "new" }, now);
+
+    expect(s.counters.activeSessions.stale).toBeUndefined();
+    expect(s.counters.activeSessions.fresh).toBeDefined();
+  });
 });
 
 describe("hookCli (CLI wrapper)", () => {

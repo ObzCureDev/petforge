@@ -122,6 +122,47 @@ describe("runDoctor", () => {
     expect(result.exitCode).toBe(1);
   });
 
+  it("warns when promptsTotal > 50 and sessionsTotal === 0", async () => {
+    const { runInit } = await import("../src/commands/init.js");
+    await runInit({ yes: true });
+
+    // Seed a state with promptsTotal > 50 and sessionsTotal === 0
+    const { runHook } = await import("../src/commands/hook.js");
+    await runHook("session_start", { session_id: "s1" }, Date.now());
+    const { readState, writeStateAtomic } = await import("../src/core/state.js");
+    const s = await readState();
+    s.counters.promptsTotal = 100;
+    s.counters.sessionsTotal = 0;
+    await writeStateAtomic(s);
+
+    const { runDoctor } = await import("../src/commands/doctor.js");
+    const result = await runDoctor();
+    const sessionCheck = result.checks.find((c) => c.name.includes("SessionStart"));
+    expect(sessionCheck).toBeDefined();
+    expect(sessionCheck?.ok).toBe(false);
+    expect(sessionCheck?.warning).toBe(true);
+    // Should NOT flip exit code (warning, not critical)
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("does not warn when sessionsTotal > 0", async () => {
+    const { runInit } = await import("../src/commands/init.js");
+    await runInit({ yes: true });
+
+    const { runHook } = await import("../src/commands/hook.js");
+    await runHook("session_start", { session_id: "s1" }, Date.now());
+    const { readState, writeStateAtomic } = await import("../src/core/state.js");
+    const s = await readState();
+    s.counters.promptsTotal = 100;
+    s.counters.sessionsTotal = 5;
+    await writeStateAtomic(s);
+
+    const { runDoctor } = await import("../src/commands/doctor.js");
+    const result = await runDoctor();
+    const sessionCheck = result.checks.find((c) => c.name.includes("SessionStart"));
+    expect(sessionCheck?.ok).toBe(true);
+  });
+
   it("emits OTel-related warnings without flipping exit code", async () => {
     // Set up a valid state and settings (no OTel env, no collector).
     const { runInit } = await import("../src/commands/init.js");

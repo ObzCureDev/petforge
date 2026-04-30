@@ -33,6 +33,23 @@ import { levelForXp, phaseForLevel } from "../core/xp.js";
 /** Tool names that include a file path — used for polyglot extension tracking. */
 const FILE_PATH_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 
+const STALE_SESSION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Remove activeSessions entries whose startTs is older than 24h.
+ *
+ * When `session_end` fails to fire (some Claude Code versions / forced
+ * exits), activeSessions accumulates indefinitely. This bounded GC keeps
+ * the state file size sane.
+ */
+function pruneStaleSessions(state: State, now: number): void {
+  for (const [sid, session] of Object.entries(state.counters.activeSessions)) {
+    if (now - session.startTs > STALE_SESSION_MS) {
+      delete state.counters.activeSessions[sid];
+    }
+  }
+}
+
 const HOOK_EVENTS: ReadonlySet<HookEvent> = new Set<HookEvent>([
   "prompt",
   "post_tool_use",
@@ -153,6 +170,7 @@ export function applyHookEvent(
   payload: ClaudeHookPayload,
   now: number,
 ): void {
+  pruneStaleSessions(state, now);
   const sessionId = payload.session_id ?? "unknown";
   const oldLevel = state.progress.level;
 
@@ -162,6 +180,17 @@ export function applyHookEvent(
       state.counters.promptsTotal += 1;
       if (isNightOwlHour(now)) state.counters.nightOwlEvents += 1;
       state.progress.xp += 5;
+      // Lazy-init the activeSession in case session_start never fired (some
+      // Claude Code versions / IDE integrations skip it). This lets per-session
+      // achievements (Polyglot, Refactor Master) eventually unlock from
+      // post_tool_use events that follow.
+      if (!state.counters.activeSessions[sessionId]) {
+        state.counters.activeSessions[sessionId] = {
+          startTs: now,
+          toolUseCount: 0,
+          fileExtensions: [],
+        };
+      }
       // Defensive: also update streak on prompt. Idempotent same-day.
       // session_start is the canonical streak driver, but prompts without
       // a preceding session_start (legacy / standalone hook firing) would
@@ -173,16 +202,21 @@ export function applyHookEvent(
       state.counters.toolUseTotal += 1;
       state.progress.xp += 1;
       if (isNightOwlHour(now)) state.counters.nightOwlEvents += 1;
-      const session = state.counters.activeSessions[sessionId];
-      if (session) {
-        session.toolUseCount += 1;
-        if (payload.tool_name && FILE_PATH_TOOLS.has(payload.tool_name)) {
-          const fp = extractFilePath(payload.tool_input);
-          if (fp) {
-            const ext = fileExtension(fp);
-            if (ext && !session.fileExtensions.includes(ext)) {
-              session.fileExtensions.push(ext);
-            }
+      // Lazy-init like in `prompt`. Without this, every per-session counter
+      // and Polyglot/Refactor Master would never accrue when session_start
+      // fails to fire.
+      let session = state.counters.activeSessions[sessionId];
+      if (!session) {
+        session = { startTs: now, toolUseCount: 0, fileExtensions: [] };
+        state.counters.activeSessions[sessionId] = session;
+      }
+      session.toolUseCount += 1;
+      if (payload.tool_name && FILE_PATH_TOOLS.has(payload.tool_name)) {
+        const fp = extractFilePath(payload.tool_input);
+        if (fp) {
+          const ext = fileExtension(fp);
+          if (ext && !session.fileExtensions.includes(ext)) {
+            session.fileExtensions.push(ext);
           }
         }
       }
