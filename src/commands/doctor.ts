@@ -13,6 +13,7 @@ import { readState, StateCorruptError, StateNotFoundError } from "../core/state.
 import {
   ClaudeSettingsInvalidJsonError,
   detectExistingPetforgeHooks,
+  PETFORGE_OTEL_ENV,
   readClaudeSettings,
 } from "../settings/claude-config.js";
 
@@ -81,8 +82,87 @@ export async function runDoctor(): Promise<{ checks: CheckResult[]; exitCode: nu
     });
   }
 
+  // V2.0 — three OTel-related checks. All warnings, never critical.
+  checks.push(await checkOtelEnv());
+  checks.push(await checkCollectorReachable());
+  checks.push(await checkRecentOtelIngest());
+
   const criticalFails = checks.filter((c) => !c.ok && !c.warning);
   return { checks, exitCode: criticalFails.length === 0 ? 0 : 1 };
+}
+
+async function checkOtelEnv(): Promise<CheckResult> {
+  try {
+    const settings = await readClaudeSettings();
+    const env = (settings?.env ?? {}) as Record<string, unknown>;
+    const ok = Object.entries(PETFORGE_OTEL_ENV).every(([k, v]) => env[k] === v);
+    return {
+      name: "OTel env vars in ~/.claude/settings.json",
+      ok,
+      warning: !ok,
+      detail: ok ? undefined : "run `petforge init --otel` to register",
+    };
+  } catch {
+    return {
+      name: "OTel env vars in ~/.claude/settings.json",
+      ok: false,
+      warning: true,
+    };
+  }
+}
+
+async function checkCollectorReachable(): Promise<CheckResult> {
+  const port = process.env.PETFORGE_OTEL_PORT ?? "7879";
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 500);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/healthz`, { signal: ctrl.signal });
+      const ok = res.ok;
+      return {
+        name: `OTel collector reachable on 127.0.0.1:${port}`,
+        ok,
+        warning: !ok,
+        detail: ok ? undefined : "run `petforge collect` (start the daemon)",
+      };
+    } finally {
+      clearTimeout(t);
+    }
+  } catch {
+    return {
+      name: `OTel collector reachable on 127.0.0.1:${port}`,
+      ok: false,
+      warning: true,
+      detail: "run `petforge collect`",
+    };
+  }
+}
+
+async function checkRecentOtelIngest(): Promise<CheckResult> {
+  try {
+    const state = await readState();
+    const lastUpdate = state.counters.otel?.lastUpdate ?? 0;
+    if (lastUpdate === 0) {
+      return {
+        name: "Recent OTel ingest",
+        ok: false,
+        warning: true,
+        detail: "no OTel data ingested yet",
+      };
+    }
+    const age = Date.now() - lastUpdate;
+    const within24h = age < 24 * 60 * 60 * 1000;
+    return {
+      name: "Recent OTel ingest",
+      ok: within24h,
+      warning: !within24h,
+      detail: within24h
+        ? `last batch ${Math.floor(age / 60_000)}m ago`
+        : `stale: last batch ${Math.floor(age / 3_600_000)}h ago — is petforge collect running?`,
+    };
+  } catch {
+    return { name: "Recent OTel ingest", ok: false, warning: true };
+  }
 }
 
 async function checkStateFile(): Promise<CheckResult> {

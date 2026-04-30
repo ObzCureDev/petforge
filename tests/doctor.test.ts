@@ -121,4 +121,25 @@ describe("runDoctor", () => {
     expect(stateCheck?.warning).not.toBe(true);
     expect(result.exitCode).toBe(1);
   });
+
+  it("emits OTel-related warnings without flipping exit code", async () => {
+    // Set up a valid state and settings (no OTel env, no collector).
+    const { runInit } = await import("../src/commands/init.js");
+    await runInit({ yes: true });
+    const { runHook } = await import("../src/commands/hook.js");
+    await runHook("session_start", { session_id: "s1" }, Date.now());
+
+    const { runDoctor } = await import("../src/commands/doctor.js");
+    const result = await runDoctor();
+
+    const otelChecks = result.checks.filter((c) => c.name.toLowerCase().includes("otel"));
+    expect(otelChecks.length).toBeGreaterThanOrEqual(3);
+    for (const c of otelChecks) {
+      // Each OTel check is either passing or a warning — never critical.
+      expect(c.ok || c.warning).toBe(true);
+      if (!c.ok) expect(c.warning).toBe(true);
+    }
+    // Without OTel, exit should still be 0 since hooks/state pass.
+    expect(result.exitCode).toBe(0);
+  });
 });
