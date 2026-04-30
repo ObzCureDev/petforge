@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="./docs/superpowers/specs/2026-04-30-petforge-design.md"><img src="https://img.shields.io/badge/status-pre--MVP-orange" alt="Status"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.1.0-blue" alt="Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="Node ≥ 20"></a>
 </p>
@@ -20,7 +20,7 @@
 
 ## What
 
-PetForge gives your terminal a deterministic ASCII pet that **levels up from real coding activity**. It listens to Claude Code's official hooks (`UserPromptSubmit`, `PostToolUse`, `Stop`, `SessionStart`, `SessionEnd`) and translates them into XP, evolutions across 5 phases, and 10 unlockable achievements.
+PetForge gives your terminal a deterministic ASCII pet that **levels up from real coding activity**. It listens to Claude Code's official hooks (`UserPromptSubmit`, `PostToolUse`, `Stop`, `SessionStart`, `SessionEnd`) and translates them into XP, evolutions across 6 phases, and 10 unlockable achievements.
 
 If you have **Claude Buddy** enabled, PetForge silently uses Buddy's sprite as your pet's visual identity. If not, it generates an original PetForge creature locally. Either way, the progression layer is yours.
 
@@ -30,11 +30,12 @@ If you have **Claude Buddy** enabled, PetForge silently uses Buddy's sprite as y
 
 ## Highlights
 
-- 🎮 **5 evolution phases** — Hatchling → Junior → Adult → Elder → Mythic
-- 🏆 **10 achievements** — Hatch, Marathon, Night Owl, Streak 7d, Polyglot, Tool Whisperer, Centurion…
+- 🥚 **6 evolution phases** — Egg → Hatchling → Junior → Adult → Elder → Mythic
+- 🏆 **10 achievements** — Hatch (eclosion), Marathon, Night Owl, Streak 7d, Polyglot, Tool Whisperer, Centurion…
 - 🐣 **5 deterministic species** — Pixel, Glitch, Daemon, Spark, Blob
 - ✨ **5 rarities + shiny** — same odds inspired by classic RPGs
 - 🪝 **5 official Claude Code hooks** — zero polling, instant updates
+- 📺 **Live watch mode** — `petforge watch` refreshes XP and counters every 500ms while you code
 - 🔒 **100% local** — zero telemetry, zero phone-home, zero account
 - 🧰 **Cross-platform** — Windows, macOS, Linux
 
@@ -63,7 +64,7 @@ You're done. Use Claude Code normally and watch your pet evolve.
 | `petforge` | Renders your pet snapshot (with idle animation if your terminal is interactive) |
 | `petforge init` | Configures Claude Code hooks (with backup, idempotent) |
 | `petforge card` | Full status card: pet, species, rarity, stats, level, XP bar, achievements |
-| `petforge watch` | Persistent display with continuous idle animation (Ctrl+C to exit) |
+| `petforge watch` | Live mode: continuous animation + auto-refresh of XP / level / counters every 500ms (Ctrl+C / q to exit) |
 | `petforge buddy [on\|off\|auto]` | Toggle Claude Buddy visual integration |
 | `petforge doctor` | Health check (hooks installed, state valid, Buddy detected, etc.) |
 
@@ -75,7 +76,7 @@ You're done. Use Claude Code normally and watch your pet evolve.
 ┌─────────────────────────────────────────────────┐
 │ Display      petforge / watch / card            │
 └─────────────────────────────────────────────────┘
-                       ↑ reads
+                       ↑ reads (live in watch mode)
 ┌─────────────────────────────────────────────────┐
 │ State        ~/.petforge/state.json (locked)    │
 └─────────────────────────────────────────────────┘
@@ -97,9 +98,24 @@ Every coding action grants XP:
 | `PostToolUse` | +1 |
 | `Stop` | +10 |
 | `SessionEnd` | +50 |
-| Achievement unlock | +500 to +5000 |
+| Achievement unlock | +50 to +5 000 |
 
 Hit XP thresholds → level up → unlock the next evolution phase. Achievements fire as you cross natural milestones.
+
+---
+
+## Evolution phases
+
+| Phase | Levels | XP cumulative | Visual |
+|---|---|---|---|
+| 🥚 **Egg** | 1–4 | 0 → ~500 | Egg trembling, fissures appear progressively |
+| 🐣 **Hatchling** | 5–11 | ~500 → 2 000 | Just hatched — first species silhouette |
+| 🐥 **Junior** | 12–29 | 2 000 → 15 000 | Growth phase, gold ANSI halo |
+| 🦎 **Adult** | 30–59 | 15 000 → 100 000 | Peak form, elaborate ASCII |
+| 🐉 **Elder** | 60–99 | 100 000 → 1 000 000 | Sage, shimmer overlay |
+| 🌟 **Mythic** | 100 | 1 000 000+ | Apotheosis: crown glyph + pulsation |
+
+The first achievement — **Hatch** — fires when your pet reaches level 5 and the egg cracks open. Reaching level 100 unlocks **Centurion** (+5 000 XP). Most users hit Junior in a couple of weeks of regular use; Mythic is a months-long milestone.
 
 ---
 
@@ -115,13 +131,15 @@ Your pet is **deterministic**: it's generated from a hash of your username + hos
 | Spark | Energy creature |
 | Blob | Amorphous gel |
 
-Rarity distribution: Common 60% · Uncommon 25% · Rare 10% · Epic 4% · Legendary 1%. Shiny: 1% independent overlay.
+Rarity distribution: Common 60% · Uncommon 25% · Rare 10% · Epic 4% · Legendary 1%. Shiny: 1% independent rainbow overlay.
+
+Each pet ships with 5 base stats (FOCUS, GRIT, FLOW, CRAFT, SPARK) derived from the same seed. Stats are flavor — they don't affect XP gain.
 
 ---
 
 ## Buddy integration (optional)
 
-If you have **Claude Buddy** enabled (`/buddy` in Claude Code v2.1.89+ Pro), PetForge will use your Buddy's sprite as your pet's visual base. ANSI overlays (halos, shimmers, pulsations) remain controlled by PetForge.
+If you have **Claude Buddy** enabled (`/buddy` in Claude Code v2.1.89+), PetForge will use your Buddy's sprite as your pet's visual base. ANSI overlays (halos, shimmers, pulsations) remain controlled by PetForge.
 
 PetForge **never** copies, parses internal Buddy files, or redistributes Anthropic content. Buddy is invoked at runtime via `claude /buddy card` and the output is rendered live.
 
@@ -140,7 +158,7 @@ To opt out: `petforge buddy off` — falls back to the local PetForge engine.
 ## Troubleshooting
 
 **My pet doesn't seem to gain XP.**
-Run `petforge doctor`. The most common cause is hooks not installed yet — run `petforge init`.
+Run `petforge doctor`. Most common causes: hooks not installed yet (run `petforge init`), or you ran `init` while a Claude Code session was already open (close and reopen the session — Claude reads `~/.claude/settings.json` at session start).
 
 **`petforge init` says my settings.json has invalid JSON.**
 PetForge refuses to overwrite a malformed settings file. Open `~/.claude/settings.json` and fix the JSON, or delete the file (PetForge will create a new one).
@@ -148,14 +166,42 @@ PetForge refuses to overwrite a malformed settings file. Open `~/.claude/setting
 **I see `petforge` errors when Claude is running.**
 Hook errors are logged to `~/.petforge/hook-errors.log`. PetForge hooks are designed to never crash Claude Code — every error path exits 0. If you see issues, share the log file.
 
-**I want to reset my pet.**
-Delete `~/.petforge/state.json`. Your pet will respawn deterministically on the next hook invocation (same species/rarity/stats — they're derived from your username + hostname).
+**I want to reset my pet (start over from the egg).**
+
+```bash
+# bash / Git Bash / WSL
+rm ~/.petforge/state.json
+
+# PowerShell
+Remove-Item $HOME\.petforge\state.json
+```
+
+Your pet will respawn deterministically on the next hook event with the same species, rarity, stats, and shiny status (they're all derived from `sha256(username + hostname)`). XP, level, achievements and counters reset to zero — you'll see the egg crack open again at level 5.
+
+**I want to wipe everything (state + logs + lockfile).**
+
+```bash
+rm -rf ~/.petforge          # bash
+Remove-Item -Recurse $HOME\.petforge   # PowerShell
+```
+
+**I want to remove PetForge from Claude Code's hooks.**
+PetForge backed up your settings during `petforge init`:
+
+```bash
+mv ~/.claude/settings.json.bak ~/.claude/settings.json
+```
+
+Or edit `~/.claude/settings.json` manually — PetForge entries are the ones whose `command` starts with `petforge hook --event`.
 
 **I don't have Claude Buddy.**
 That's fine — PetForge runs the local engine when Buddy isn't detected. Run `petforge buddy off` to skip detection entirely.
 
 **My terminal doesn't show ANSI colors / box characters correctly.**
-Make sure your terminal supports UTF-8 + truecolor (most modern terminals do). On Windows, use Windows Terminal or VS Code's integrated terminal.
+Make sure your terminal supports UTF-8 + truecolor (most modern terminals do). On Windows, use Windows Terminal or VS Code's integrated terminal — `cmd.exe` and old PowerShell hosts may render fissures and shimmers poorly.
+
+**`petforge watch` shows the pet but XP doesn't update.**
+Make sure you're on v1.1.0+ (`petforge --version`). Earlier versions cached the initial state and never reloaded. Upgrade with `npm install -g @mindvisionstudio/petforge@latest`.
 
 ---
 
@@ -180,12 +226,12 @@ git clone https://github.com/ObzCureDev/petforge.git
 cd petforge
 npm install
 npm run dev          # tsup watch mode
-npm test             # vitest
+npm test             # vitest (196 tests across 11 files)
 npm run lint         # biome check
 npm run build        # tsup production build
 ```
 
-See [`docs/superpowers/specs/2026-04-30-petforge-design.md`](./docs/superpowers/specs/2026-04-30-petforge-design.md) for the full design specification.
+See [`docs/superpowers/specs/2026-04-30-petforge-design.md`](./docs/superpowers/specs/2026-04-30-petforge-design.md) for the full design specification and [`CHANGELOG.md`](./CHANGELOG.md) for release notes.
 
 ---
 
@@ -198,6 +244,7 @@ See [`docs/superpowers/specs/2026-04-30-petforge-design.md`](./docs/superpowers/
 - Skin shop
 - Multi-device cloud sync
 - More species & evolution branches
+- Claude Code quota usage display (pending public CLI surface from Anthropic)
 
 ---
 
