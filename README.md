@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.1.0-blue" alt="Version"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.0-blue" alt="Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="Node ≥ 20"></a>
 </p>
@@ -36,6 +36,7 @@ If you have **Claude Buddy** enabled, PetForge silently uses Buddy's sprite as y
 - ✨ **5 rarities + shiny** — same odds inspired by classic RPGs
 - 🪝 **5 official Claude Code hooks** — zero polling, instant updates
 - 📺 **Live watch mode** — `petforge watch` refreshes XP and counters every 500ms while you code
+- 📱 **Stream to your phone** — `petforge serve --lan` exposes a live web view via SSE
 - 🔒 **100% local** — zero telemetry, zero phone-home, zero account
 - 🧰 **Cross-platform** — Windows, macOS, Linux
 
@@ -66,6 +67,7 @@ You're done. Use Claude Code normally and watch your pet evolve.
 | `petforge card` | Full status card: pet, species, rarity, stats, level, XP bar, achievements |
 | `petforge watch` | Live mode: continuous animation + auto-refresh of XP / level / counters every 500ms (Ctrl+C / q to exit) |
 | `petforge buddy [on\|off\|auto]` | Toggle Claude Buddy visual integration |
+| `petforge serve [--port=N] [--lan] [--token=XXX]` | HTTP server with mobile-friendly web view (live updates via SSE) |
 | `petforge doctor` | Health check (hooks installed, state valid, Buddy detected, etc.) |
 
 ---
@@ -144,6 +146,22 @@ If you have **Claude Buddy** enabled (`/buddy` in Claude Code v2.1.89+), PetForg
 PetForge **never** copies, parses internal Buddy files, or redistributes Anthropic content. Buddy is invoked at runtime via `claude /buddy card` and the output is rendered live.
 
 To opt out: `petforge buddy off` — falls back to the local PetForge engine.
+
+---
+
+## Stream to your phone
+
+Run `petforge serve --lan` on your machine — PetForge will print your local IP. Open that URL on your phone (same Wi-Fi). Add to home screen for an "app" feel. The web view streams live: every hook event your machine receives is reflected on your phone within ~50ms.
+
+```bash
+petforge serve --lan
+# PetForge server listening on http://192.168.1.42:7878
+# Phone access (same Wi-Fi): http://192.168.1.42:7878
+```
+
+By default the server binds to `127.0.0.1` (loopback only). Pass `--lan` to expose it on `0.0.0.0` for phone access. For shared networks, use `--token=XXX` to require a shared secret in the URL (`?token=XXX`) or via a `Bearer` header.
+
+The server is **read-only** — it streams state and never mutates it.
 
 ---
 
@@ -226,7 +244,7 @@ git clone https://github.com/ObzCureDev/petforge.git
 cd petforge
 npm install
 npm run dev          # tsup watch mode
-npm test             # vitest (196 tests across 11 files)
+npm test             # vitest (208+ tests across 12 files)
 npm run lint         # biome check
 npm run build        # tsup production build
 ```

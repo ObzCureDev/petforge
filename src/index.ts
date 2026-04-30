@@ -10,6 +10,7 @@ import { defaultCli } from "./commands/default.js";
 import { doctorCli } from "./commands/doctor.js";
 import { hookCli } from "./commands/hook.js";
 import { initCli } from "./commands/init.js";
+import { serveCli } from "./commands/serve.js";
 import { watchCli } from "./commands/watch.js";
 
 function readVersion(): string {
@@ -41,6 +42,8 @@ async function main(): Promise<number> {
     console.log("  doctor      Diagnostic checklist (Node, state, hooks, claude integration)");
     console.log("  buddy [on|off|auto]");
     console.log("              Show or set Buddy integration mode");
+    console.log("  serve       Stream the pet over HTTP for browser/phone viewing");
+    console.log("              (--port=7878 --lan --token=XXX)");
     console.log("  hook        Internal: process a Claude Code hook event from stdin");
     console.log("  --version   Show version");
     return 0;
@@ -68,6 +71,9 @@ async function main(): Promise<number> {
   }
   if (cmd === "buddy") {
     return await buddyCli(args.slice(1));
+  }
+  if (cmd === "serve") {
+    return await serveCli(args.slice(1));
   }
   if (cmd === "hook") {
     return await hookCli(args.slice(1));

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 — 2026-04-30
+
+### Features
+- New `petforge serve [--port=7878] [--lan] [--token=XXX]` command:
+  starts a local HTTP server with a mobile-friendly web view of your pet.
+  Live updates via Server-Sent Events; reconnects automatically on disconnect.
+  Default binds to `127.0.0.1` (local-only). `--lan` exposes on `0.0.0.0`
+  for phone access on the same Wi-Fi. Optional `--token` for shared networks.
+
+### Why
+Some users want to glance at their pet from a phone or second screen
+without keeping a terminal open. The web view is read-only — it streams
+state, never mutates.
+
 ## 1.1.0 — 2026-04-30
 
 ### Changes
