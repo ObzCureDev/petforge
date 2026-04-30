@@ -19,6 +19,7 @@ function petforgeHome(): string {
 export const HOME_DIR = petforgeHome();
 export const PETFORGE_DIR = path.join(HOME_DIR, ".petforge");
 export const STATE_FILE = path.join(PETFORGE_DIR, "state.json");
+export const LOCK_FILE = path.join(PETFORGE_DIR, ".lock");
 export const HOOK_ERROR_LOG = path.join(PETFORGE_DIR, "hook-errors.log");
 export const CLAUDE_DIR = path.join(HOME_DIR, ".claude");
 export const CLAUDE_SETTINGS_FILE = path.join(CLAUDE_DIR, "settings.json");

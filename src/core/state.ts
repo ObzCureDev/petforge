@@ -11,18 +11,23 @@
  * Design notes:
  *  - `state.meta.updatedAt` is owned by `writeStateAtomic` — callers do not
  *    need to set it manually.
- *  - The lock target is `STATE_FILE` if it exists, else `PETFORGE_DIR`.
- *    proper-lockfile requires the target to exist.
+ *  - The lock target is always `LOCK_FILE` (a dedicated sentinel inside
+ *    PETFORGE_DIR). Using a fixed target — independent of state.json's
+ *    existence — avoids a first-run race where two processes would
+ *    otherwise pick different lock files (`.petforge.lock` vs
+ *    `state.json.lock`) and both enter the critical section.
+ *    proper-lockfile requires the target to exist, so we touch it first.
  *  - `withStateLock` accepts an optional `onMissingOrCorrupt` initialiser:
  *    when provided, missing/corrupt state is silently recovered and the
  *    mutator runs against the fresh state. When absent, the original error
  *    is rethrown.
  */
 
+import crypto from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import lockfile from "proper-lockfile";
-import { HOOK_ERROR_LOG, PETFORGE_DIR, STATE_FILE } from "./paths.js";
+import { HOOK_ERROR_LOG, LOCK_FILE, PETFORGE_DIR, STATE_FILE } from "./paths.js";
 import { createInitialState, type Pet, type State, StateSchema } from "./schema.js";
 
 // ---------- Errors ----------
@@ -35,11 +40,9 @@ export class StateNotFoundError extends Error {
 }
 
 export class StateCorruptError extends Error {
-  public override readonly cause: unknown;
   constructor(message: string, cause?: unknown) {
-    super(message);
+    super(message, { cause });
     this.name = "StateCorruptError";
-    this.cause = cause;
   }
 }
 
@@ -115,15 +118,18 @@ export async function writeStateAtomic(state: State): Promise<void> {
 }
 
 /**
- * Back up the existing (corrupt) state.json to
- * `state.corrupt.<timestamp>.json` and return a fresh State.
+ * Materialise a fresh State, backing up any existing (presumably corrupt)
+ * state.json to `state.corrupt.<timestamp>.<rand>.json` first.
  *
- * The caller is responsible for writing the returned state.
+ * Safe to call when state.json is merely missing — the backup step is
+ * skipped silently in that case. The caller is responsible for writing
+ * the returned state.
  */
 export async function recoverCorruptState(petGenerator: () => Pet): Promise<State> {
   if (await fileExists(STATE_FILE)) {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const backup = path.join(PETFORGE_DIR, `state.corrupt.${stamp}.json`);
+    const suffix = crypto.randomBytes(3).toString("hex");
+    const backup = path.join(PETFORGE_DIR, `state.corrupt.${stamp}.${suffix}.json`);
     try {
       await fs.copyFile(STATE_FILE, backup);
     } catch {
@@ -157,11 +163,25 @@ export async function withStateLock<T>(
 ): Promise<T> {
   await ensurePetforgeDir();
 
-  const lockTarget = (await fileExists(STATE_FILE)) ? STATE_FILE : PETFORGE_DIR;
-  const release = await lockfile.lock(lockTarget, {
+  // proper-lockfile derives `<target>.lock` from the target path, so we
+  // need a stable, always-existing target. Touch the dedicated lock file
+  // (no-op if already present) before acquiring.
+  const fd = await fs.open(LOCK_FILE, "a");
+  await fd.close();
+
+  // Retry budget tuned for plausible contention: with all callers now
+  // funnelled through a single lock target (vs. the previous racy
+  // ternary that sometimes split traffic across two lock files), hooks
+  // fired in parallel — e.g. multiple Claude Code terminals on the
+  // same machine — can stack up a dozen waiters. minTimeout stays
+  // small so a freshly-released lock is picked up promptly;
+  // maxTimeout caps late retries so a starved waiter doesn't sleep
+  // for seconds while the lock is free. Stale at 5s reclaims a truly
+  // orphaned lock.
+  const release = await lockfile.lock(LOCK_FILE, {
     realpath: false,
     stale: 5000,
-    retries: { retries: 5, factor: 1.5, minTimeout: 50, maxTimeout: 500 },
+    retries: { retries: 30, factor: 1.2, minTimeout: 20, maxTimeout: 200 },
   });
 
   try {

@@ -229,4 +229,34 @@ describe("state", () => {
     const final = await state.readState();
     expect(final.counters.promptsTotal).toBe(N);
   });
+
+  it("withStateLock serializes concurrent first-run mutations on empty home", async () => {
+    const { paths, schema, state } = await loadModules();
+
+    // No pre-seeding — state.json doesn't exist yet, so every parallel
+    // mutator must go through onMissingOrCorrupt. This exercises the
+    // first-run race window in lock-target selection: with the buggy
+    // ternary `STATE_FILE-if-exists else PETFORGE_DIR`, the workers
+    // would split across two distinct `.lock` files (one keyed off
+    // `state.json`, one keyed off `.petforge`) and both enter the
+    // critical section, producing a final count < N.
+    const N = 10;
+    const tasks = Array.from({ length: N }, () =>
+      state.withStateLock(
+        (s) => {
+          s.counters.promptsTotal += 1;
+        },
+        { onMissingOrCorrupt: () => state.recoverCorruptState(schema.placeholderPet) },
+      ),
+    );
+    await Promise.all(tasks);
+
+    const final = await state.readState();
+    expect(final.counters.promptsTotal).toBe(N);
+
+    // Belt-and-braces: the dedicated lock file must have been created
+    // (proving the fix routed through LOCK_FILE rather than the
+    // existence-conditional ternary).
+    await expect(fs.access(paths.LOCK_FILE)).resolves.toBeUndefined();
+  });
 });
