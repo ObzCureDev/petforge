@@ -228,18 +228,3 @@ export function createInitialState(pet: Pet, now: number = Date.now()): State {
     },
   };
 }
-
-/**
- * Deterministic placeholder pet, only used by the state layer when a real
- * pet generator is unavailable (e.g. tests). Production code should always
- * pass `generatePet()` from pet-engine (Task 3).
- */
-export function placeholderPet(): Pet {
-  return {
-    species: "blob",
-    rarity: "common",
-    shiny: false,
-    stats: { focus: 0, grit: 0, flow: 0, craft: 0, spark: 0 },
-    seed: "0".repeat(64),
-  };
-}

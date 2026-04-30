@@ -12,13 +12,19 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as PathsMod from "../src/core/paths.js";
+import type * as PetEngineMod from "../src/core/pet-engine.js";
 import type * as SchemaMod from "../src/core/schema.js";
 import type * as StateMod from "../src/core/state.js";
 
 interface TestModules {
   paths: typeof PathsMod;
+  petEngine: typeof PetEngineMod;
   schema: typeof SchemaMod;
   state: typeof StateMod;
+}
+
+function testPet(petEngine: typeof PetEngineMod): SchemaMod.Pet {
+  return petEngine.generatePet({ username: "test-user", hostname: "test-host" });
 }
 
 let testHome: string;
@@ -27,9 +33,10 @@ let prevHome: string | undefined;
 async function loadModules(): Promise<TestModules> {
   vi.resetModules();
   const paths = await import("../src/core/paths.js");
+  const petEngine = await import("../src/core/pet-engine.js");
   const schema = await import("../src/core/schema.js");
   const state = await import("../src/core/state.js");
-  return { paths, schema, state };
+  return { paths, petEngine, schema, state };
 }
 
 beforeEach(async () => {
@@ -54,8 +61,8 @@ afterEach(async () => {
 
 describe("schema", () => {
   it("createInitialState produces a State that validates", async () => {
-    const { schema } = await loadModules();
-    const pet = schema.placeholderPet();
+    const { petEngine, schema } = await loadModules();
+    const pet = testPet(petEngine);
     const s = schema.createInitialState(pet, 1700000000000);
 
     expect(s.schemaVersion).toBe(1);
@@ -79,8 +86,8 @@ describe("schema", () => {
   });
 
   it("StateSchema rejects unknown species", async () => {
-    const { schema } = await loadModules();
-    const s = schema.createInitialState(schema.placeholderPet());
+    const { petEngine, schema } = await loadModules();
+    const s = schema.createInitialState(testPet(petEngine));
     const broken = { ...s, pet: { ...s.pet, species: "dragon" } };
     expect(schema.StateSchema.safeParse(broken).success).toBe(false);
   });
@@ -103,14 +110,16 @@ describe("state", () => {
   });
 
   it("readState succeeds with a valid state file", async () => {
-    const { paths, schema, state } = await loadModules();
+    const { paths, petEngine, schema, state } = await loadModules();
     await state.ensurePetforgeDir();
-    const fresh = schema.createInitialState(schema.placeholderPet(), 1700000000000);
+    const pet = testPet(petEngine);
+    const fresh = schema.createInitialState(pet, 1700000000000);
     await fs.writeFile(paths.STATE_FILE, JSON.stringify(fresh, null, 2), "utf8");
 
     const loaded = await state.readState();
     expect(loaded.schemaVersion).toBe(1);
-    expect(loaded.pet.species).toBe("blob");
+    expect(loaded.pet.species).toBe(pet.species);
+    expect(loaded.pet.seed).toBe(pet.seed);
     expect(loaded.progress.level).toBe(1);
   });
 
@@ -129,11 +138,11 @@ describe("state", () => {
   });
 
   it("recoverCorruptState backs up corrupt file and returns fresh state", async () => {
-    const { paths, schema, state } = await loadModules();
+    const { paths, petEngine, state } = await loadModules();
     await state.ensurePetforgeDir();
     await fs.writeFile(paths.STATE_FILE, "garbage", "utf8");
 
-    const fresh = await state.recoverCorruptState(() => schema.placeholderPet());
+    const fresh = await state.recoverCorruptState(() => testPet(petEngine));
     expect(fresh.schemaVersion).toBe(1);
     expect(fresh.progress.xp).toBe(0);
 
@@ -150,9 +159,9 @@ describe("state", () => {
   });
 
   it("writeStateAtomic creates state.json with content and updates meta.updatedAt", async () => {
-    const { paths, schema, state } = await loadModules();
+    const { paths, petEngine, schema, state } = await loadModules();
     await state.ensurePetforgeDir();
-    const s = schema.createInitialState(schema.placeholderPet(), 1700000000000);
+    const s = schema.createInitialState(testPet(petEngine), 1700000000000);
     expect(s.meta.updatedAt).toBe(1700000000000);
 
     const before = Date.now();
@@ -171,14 +180,14 @@ describe("state", () => {
   });
 
   it("writeStateAtomic replaces existing content atomically", async () => {
-    const { paths, schema, state } = await loadModules();
+    const { paths, petEngine, schema, state } = await loadModules();
     await state.ensurePetforgeDir();
 
-    const first = schema.createInitialState(schema.placeholderPet());
+    const first = schema.createInitialState(testPet(petEngine));
     first.counters.promptsTotal = 1;
     await state.writeStateAtomic(first);
 
-    const second = schema.createInitialState(schema.placeholderPet());
+    const second = schema.createInitialState(testPet(petEngine));
     second.counters.promptsTotal = 99;
     await state.writeStateAtomic(second);
 
@@ -187,13 +196,13 @@ describe("state", () => {
   });
 
   it("withStateLock initialises state via onMissingOrCorrupt when file absent", async () => {
-    const { schema, state } = await loadModules();
+    const { petEngine, schema, state } = await loadModules();
     const result = await state.withStateLock(
       (s) => {
         s.counters.promptsTotal = 7;
         return s.counters.promptsTotal;
       },
-      { onMissingOrCorrupt: () => schema.createInitialState(schema.placeholderPet()) },
+      { onMissingOrCorrupt: () => schema.createInitialState(testPet(petEngine)) },
     );
     expect(result).toBe(7);
 
@@ -209,11 +218,11 @@ describe("state", () => {
   });
 
   it("withStateLock serialises 5 concurrent increments (smoke test)", async () => {
-    const { schema, state } = await loadModules();
+    const { petEngine, schema, state } = await loadModules();
 
     // seed an initial state so the file exists for all five workers
     await state.ensurePetforgeDir();
-    await state.writeStateAtomic(schema.createInitialState(schema.placeholderPet()));
+    await state.writeStateAtomic(schema.createInitialState(testPet(petEngine)));
 
     const N = 5;
     const tasks = Array.from({ length: N }, () =>
@@ -231,7 +240,7 @@ describe("state", () => {
   });
 
   it("withStateLock serializes concurrent first-run mutations on empty home", async () => {
-    const { paths, schema, state } = await loadModules();
+    const { paths, petEngine, state } = await loadModules();
 
     // No pre-seeding — state.json doesn't exist yet, so every parallel
     // mutator must go through onMissingOrCorrupt. This exercises the
@@ -246,7 +255,7 @@ describe("state", () => {
         (s) => {
           s.counters.promptsTotal += 1;
         },
-        { onMissingOrCorrupt: () => state.recoverCorruptState(schema.placeholderPet) },
+        { onMissingOrCorrupt: () => state.recoverCorruptState(() => testPet(petEngine)) },
       ),
     );
     await Promise.all(tasks);
