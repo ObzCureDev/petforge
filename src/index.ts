@@ -12,6 +12,7 @@ import { doctorCli } from "./commands/doctor.js";
 import { hookCli } from "./commands/hook.js";
 import { initCli } from "./commands/init.js";
 import { serveCli } from "./commands/serve.js";
+import { upCli } from "./commands/up.js";
 import { watchCli } from "./commands/watch.js";
 
 function readVersion(): string {
@@ -47,6 +48,8 @@ async function main(): Promise<number> {
     console.log("              (--port=7878 --lan --token=XXX)");
     console.log("  collect     Run the OTLP collector (foreground daemon, port 7879)");
     console.log("              (--port=N --forward=URL)");
+    console.log("  up          Start collect + serve in one process (recommended)");
+    console.log("              (--port=N --collect-port=N --lan --token=XXX --forward=URL)");
     console.log("  hook        Internal: process a Claude Code hook event from stdin");
     console.log("  --version   Show version");
     return 0;
@@ -80,6 +83,9 @@ async function main(): Promise<number> {
   }
   if (cmd === "collect") {
     return await collectCli(args.slice(1));
+  }
+  if (cmd === "up") {
+    return await upCli(args.slice(1));
   }
   if (cmd === "hook") {
     return await hookCli(args.slice(1));

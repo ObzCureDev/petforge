@@ -104,9 +104,9 @@ const CSS = `
   .pet {
     font-size: 1.1rem;
     line-height: 1.1;
-    text-align: center;
     white-space: pre;
-    margin: 1rem 0;
+    margin: 1rem auto;
+    width: fit-content;
     min-height: 8em;
   }
   .header { text-align: center; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em; }
