@@ -123,11 +123,12 @@ interface State {
     toolUseTotal: number;
     sessionsTotal: number;
 
-    perSession: {
-      startTs: number;       // epoch ms
+    // Indexed by Claude Code session_id (multiple parallel sessions supported)
+    activeSessions: Record<string, {
+      startTs: number;            // epoch ms (from SessionStart event)
       toolUseCount: number;
-      fileExtensions: string[];  // unique extensions seen this session
-    } | null;
+      fileExtensions: string[];   // unique extensions seen this session
+    }>;
 
     streakDays: number;
     lastActiveDate: string;  // ISO date YYYY-MM-DD
@@ -241,13 +242,15 @@ Written to `~/.claude/settings.json` by `petforge init`:
 
 ### XP per event
 
+All hook events receive `session_id` in their stdin JSON payload. Hook handler reads it and indexes `activeSessions` by it.
+
 | Event | XP gain | Side-effect on counters |
 |---|---|---|
 | `UserPromptSubmit` | +5 | `promptsTotal++`, check Hatch achievement, check Night Owl |
-| `PostToolUse` | +1 | `toolUseTotal++`, `perSession.toolUseCount++`, extract file extension if Edit/Write tool, check First Tool / Refactor Master / Polyglot / Tool Whisperer |
+| `PostToolUse` | +1 | `toolUseTotal++`, `activeSessions[session_id].toolUseCount++`, extract file extension if Edit/Write/MultiEdit/NotebookEdit tool → push to `activeSessions[session_id].fileExtensions`, check First Tool / Refactor Master / Polyglot / Tool Whisperer |
 | `Stop` | +10 | (no counter change) |
-| `SessionStart` | 0 | `perSession = { startTs: now, toolUseCount: 0, fileExtensions: [] }`, check & update streak |
-| `SessionEnd` | +50 | `sessionsTotal++`, check Marathon (now - startTs > 1h), reset `perSession = null` |
+| `SessionStart` | 0 | `activeSessions[session_id] = { startTs: now, toolUseCount: 0, fileExtensions: [] }`, check & update streak |
+| `SessionEnd` | +50 | `sessionsTotal++`, check Marathon (`now - activeSessions[session_id].startTs > 3 600 000`), then `delete activeSessions[session_id]` |
 
 XP gain triggers level recomputation. If new level > old level → `pendingLevelUp = true`. Phase recomputation triggered by level boundary.
 
@@ -318,18 +321,40 @@ function generatePet(): Pet {
 | 🐉 Elder | 80-99 | 250 000 → 1 000 000 | + shimmer ANSI overlay |
 | 🌟 Mythic | 100 | 1 000 000+ | + pulsation effect + crown glyph |
 
-Level → XP curve : roughly geometric progression. Leveling formula:
+Level → XP curve : piecewise interpolation between phase boundaries with a curve exponent of 1.55. Locked to the boundary table values.
 
 ```ts
-function xpForLevel(level: number): number {
-  // level 1 = 0 xp ; level 2 = ~250 ; level 100 = 1 000 000
-  // tuned so 1 M xp ≈ a few weeks of intensive use
+const LEVEL_BOUNDARIES = [
+  { level: 1,   xp: 0 },
+  { level: 20,  xp: 5_000 },
+  { level: 50,  xp: 50_000 },
+  { level: 80,  xp: 250_000 },
+  { level: 100, xp: 1_000_000 },
+] as const;
+
+export function xpForLevel(level: number): number {
   if (level <= 1) return 0;
-  return Math.floor(250 * Math.pow(level - 1, 1.85));
+  if (level >= 100) return 1_000_000;
+
+  const upperIndex = LEVEL_BOUNDARIES.findIndex((b) => level <= b.level);
+  const upper = LEVEL_BOUNDARIES[upperIndex];
+  const lower = LEVEL_BOUNDARIES[upperIndex - 1];
+
+  const t = (level - lower.level) / (upper.level - lower.level);
+  const curved = Math.pow(t, 1.55);
+
+  return Math.floor(lower.xp + (upper.xp - lower.xp) * curved);
 }
 ```
 
-> Curve to be calibrated after dogfood week. Initial values are placeholders that produce ~5K cumulative XP at level 19, ~50K at 49, ~250K at 79, ~1M at 100.
+Acceptance values (test-locked):
+- `xpForLevel(1)` === 0
+- `xpForLevel(20)` === 5 000
+- `xpForLevel(50)` === 50 000
+- `xpForLevel(80)` === 250 000
+- `xpForLevel(100)` === 1 000 000
+
+Inside each phase, the curve grows non-linearly (exponent 1.55) so early levels are quick and final levels are progressively harder. Boundaries are exact.
 
 ### Buddy visual override
 
@@ -348,12 +373,12 @@ All 10 ship in V1. Each unlock grants XP, sets `pendingUnlocks` for cinematic at
 |---|---|---|---|---|
 | `hatch` | Hatch | First `UserPromptSubmit` | 500 | Instant |
 | `first_tool` | First Tool | First `PostToolUse` | 500 | Instant |
-| `marathon` | Marathon | `SessionEnd` with `now - startTs > 3 600 000` (1h) | 1 000 | Easy |
+| `marathon` | Marathon | `SessionEnd` with `now - activeSessions[session_id].startTs > 3 600 000` (1h) | 1 000 | Easy |
 | `night_owl` | Night Owl | `nightOwlEvents >= 50` (events in [22h, 02h) local) | 1 500 | Medium |
 | `streak_3d` | Streak 3 Days | `streakDays >= 3` | 1 000 | Easy |
 | `streak_7d` | Streak 7 Days | `streakDays >= 7` | 2 500 | Medium |
-| `polyglot` | Polyglot | `perSession.fileExtensions.length >= 5` | 1 500 | Easy |
-| `refactor_master` | Refactor Master | `perSession.toolUseCount >= 100` (any tool — captures heavy sessions regardless of tool mix) | 2 000 | Medium |
+| `polyglot` | Polyglot | `activeSessions[session_id].fileExtensions.length >= 5` | 1 500 | Easy |
+| `refactor_master` | Refactor Master | `activeSessions[session_id].toolUseCount >= 100` (any tool — captures heavy sessions regardless of tool mix) | 2 000 | Medium |
 | `tool_whisperer` | Tool Whisperer | `toolUseTotal >= 1 000` | 3 000 | Hard |
 | `centurion` | Centurion | `level === 100` | 5 000 | Hard |
 
