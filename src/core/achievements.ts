@@ -117,11 +117,12 @@ export function checkAchievementsForEvent(
 
   switch (event) {
     case "prompt": {
-      tryUnlock("hatch", state.counters.promptsTotal >= 1);
+      tryUnlock("hatch", state.progress.level >= 5);
       tryUnlock("night_owl", state.counters.nightOwlEvents >= 50);
       break;
     }
     case "post_tool_use": {
+      tryUnlock("hatch", state.progress.level >= 5);
       tryUnlock("first_tool", state.counters.toolUseTotal >= 1);
       tryUnlock("tool_whisperer", state.counters.toolUseTotal >= 1_000);
       tryUnlock("night_owl", state.counters.nightOwlEvents >= 50);
@@ -133,8 +134,10 @@ export function checkAchievementsForEvent(
     }
     case "stop": {
       // No achievement triggers tied to "stop" alone — XP for stop events is
-      // awarded by the hook handler. Still check level-based achievement
-      // here in case accumulated XP crossed level 100.
+      // awarded by the hook handler. Still check level-based achievements
+      // here in case accumulated XP crossed level 5 (hatch) or 100
+      // (centurion).
+      tryUnlock("hatch", state.progress.level >= 5);
       tryUnlock("centurion", state.progress.level >= 100);
       break;
     }
@@ -150,6 +153,7 @@ export function checkAchievementsForEvent(
         const duration = input.now - session.startTs;
         tryUnlock("marathon", duration > 60 * 60 * 1000);
       }
+      tryUnlock("hatch", state.progress.level >= 5);
       tryUnlock("centurion", state.progress.level >= 100);
       break;
     }

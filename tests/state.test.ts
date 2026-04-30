@@ -70,7 +70,7 @@ describe("schema", () => {
     expect(s.progress).toEqual({
       xp: 0,
       level: 1,
-      phase: "hatchling",
+      phase: "egg",
       pendingLevelUp: false,
     });
     expect(s.counters.activeSessions).toEqual({});

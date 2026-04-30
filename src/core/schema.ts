@@ -15,7 +15,7 @@ export type Species = (typeof SPECIES)[number];
 export const RARITIES = ["common", "uncommon", "rare", "epic", "legendary"] as const;
 export type Rarity = (typeof RARITIES)[number];
 
-export const PHASES = ["hatchling", "junior", "adult", "elder", "mythic"] as const;
+export const PHASES = ["egg", "hatchling", "junior", "adult", "elder", "mythic"] as const;
 export type Phase = (typeof PHASES)[number];
 
 export const BUDDY_TOGGLES = ["auto", "on", "off"] as const;
@@ -201,7 +201,7 @@ export function createInitialState(pet: Pet, now: number = Date.now()): State {
     progress: {
       xp: 0,
       level: 1,
-      phase: "hatchling",
+      phase: "egg",
       pendingLevelUp: false,
     },
     counters: {

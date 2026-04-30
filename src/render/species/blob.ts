@@ -9,6 +9,11 @@
 import type { Phase } from "../../core/schema.js";
 
 export const blobFrames: Record<Phase, string[]> = {
+  egg: [
+    `   ╭───╮\n  ╭ ░ ░ ╮\n  │ ░░░ │\n  ╰─────╯`,
+    `   ╭─╮─╮\n  ╭ ░ ╱ ╮\n  │ ░░░ │\n  ╰─────╯`,
+    `   ╭╱──╮\n  ╭ ╲ ╱ ╮\n  │ ░╱░ │\n  ╰──╲──╯`,
+  ],
   hatchling: [
     `   ╭───╮\n  ╭ o o ╮\n  │  ﹏  │\n  ╰─────╯\n    · ·`,
     `   ╭───╮\n  ╭ o o ╮\n  │  ︶  │\n  ╰─────╯\n    · ·`,

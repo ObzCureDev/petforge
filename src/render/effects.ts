@@ -52,6 +52,8 @@ export function applyRarityTint(text: string, rarity: Rarity): string {
  */
 export function applyPhaseEffect(text: string, phase: Phase, frameIndex: number): string {
   switch (phase) {
+    case "egg":
+      return text;
     case "hatchling":
       return text;
     case "junior": {

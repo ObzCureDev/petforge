@@ -304,6 +304,33 @@ describe("non-TTY default command path", () => {
   });
 });
 
+describe("WatchView", () => {
+  it("renders the pet snapshot and the activity block on initial mount", async () => {
+    const { render } = await import("ink-testing-library");
+    const { WatchView } = await import("../src/render/components/WatchView.js");
+    const { createInitialState } = await import("../src/core/schema.js");
+    const { generatePet } = await import("../src/core/pet-engine.js");
+
+    const pet = generatePet({ username: "u", hostname: "h" });
+    const state = createInitialState(pet);
+    state.counters.sessionsTotal = 4;
+    state.counters.streakDays = 2;
+    state.counters.promptsTotal = 3;
+    state.counters.toolUseTotal = 7;
+
+    const { lastFrame, unmount } = render(React.createElement(WatchView, { initialState: state }));
+    const out = lastFrame() ?? "";
+    // Pet snapshot present
+    expect(out).toContain(pet.species.toUpperCase());
+    // Activity block present (mirrors `petforge card`)
+    expect(out).toMatch(/Sessions: 4/);
+    expect(out).toMatch(/Streak: 2d/);
+    expect(out).toMatch(/Prompts: 3/);
+    expect(out).toMatch(/Tools: 7/);
+    unmount();
+  });
+});
+
 describe("DefaultApp staging", () => {
   it("non-TTY mounts straight to snapshot (no animation)", async () => {
     const { render } = await import("ink-testing-library");

@@ -9,6 +9,7 @@ import { Box, Text } from "ink";
 import type React from "react";
 import type { State } from "../../core/schema.js";
 import { AchievementGrid } from "./AchievementGrid.js";
+import { ActivityBlock } from "./ActivityBlock.js";
 import { PetRenderer } from "./PetRenderer.js";
 import { StatBar } from "./StatBar.js";
 import { XpBar } from "./XpBar.js";
@@ -20,7 +21,7 @@ export interface CardViewProps {
 }
 
 export function CardView({ state, frameIndex = 0 }: CardViewProps): React.ReactElement {
-  const { pet, progress, counters, achievements } = state;
+  const { pet, progress, achievements } = state;
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
@@ -45,11 +46,7 @@ export function CardView({ state, frameIndex = 0 }: CardViewProps): React.ReactE
           <AchievementGrid unlocked={achievements.unlocked} />
         </Box>
       </Box>
-      <Text> </Text>
-      <Text dimColor>
-        Sessions: {counters.sessionsTotal} · Streak: {counters.streakDays}d · Prompts:{" "}
-        {counters.promptsTotal} · Tools: {counters.toolUseTotal}
-      </Text>
+      <ActivityBlock state={state} />
     </Box>
   );
 }

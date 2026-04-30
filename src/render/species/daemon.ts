@@ -10,6 +10,11 @@
 import type { Phase } from "../../core/schema.js";
 
 export const daemonFrames: Record<Phase, string[]> = {
+  egg: [
+    `   ___\n  /; ;\\\n  | _ |\n  \\___/`,
+    `   ___\n  /;/;\\\n  | _ |\n  \\___/`,
+    `   _╱_\n  /;╲;\\\n  |╱_ |\n  \\___/`,
+  ],
   hatchling: [
     `   ʌ   ʌ\n  /·\\ /·\\\n  | ; ; |\n  \\ {_} /\n   \`v v\`\n    ⌃`,
     `   ʌ   ʌ\n  /·\\ /·\\\n  | : ; |\n  \\ {_} /\n   \`v v\`\n    ⌄`,

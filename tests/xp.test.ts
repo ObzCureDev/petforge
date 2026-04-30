@@ -13,14 +13,14 @@ describe("xp", () => {
     it("xpForLevel(1) === 0", () => {
       expect(xpForLevel(1)).toBe(0);
     });
-    it("xpForLevel(20) === 5_000", () => {
-      expect(xpForLevel(20)).toBe(5_000);
+    it("xpForLevel(12) === 2_000", () => {
+      expect(xpForLevel(12)).toBe(2_000);
     });
-    it("xpForLevel(50) === 50_000", () => {
-      expect(xpForLevel(50)).toBe(50_000);
+    it("xpForLevel(30) === 15_000", () => {
+      expect(xpForLevel(30)).toBe(15_000);
     });
-    it("xpForLevel(80) === 250_000", () => {
-      expect(xpForLevel(80)).toBe(250_000);
+    it("xpForLevel(60) === 100_000", () => {
+      expect(xpForLevel(60)).toBe(100_000);
     });
     it("xpForLevel(100) === 1_000_000", () => {
       expect(xpForLevel(100)).toBe(1_000_000);
@@ -58,9 +58,9 @@ describe("xp", () => {
 
     it("xp at boundary returns the boundary level", () => {
       expect(levelForXp(0)).toBe(1);
-      expect(levelForXp(5_000)).toBe(20);
-      expect(levelForXp(50_000)).toBe(50);
-      expect(levelForXp(250_000)).toBe(80);
+      expect(levelForXp(2_000)).toBe(12);
+      expect(levelForXp(15_000)).toBe(30);
+      expect(levelForXp(100_000)).toBe(60);
       expect(levelForXp(1_000_000)).toBe(100);
     });
 
@@ -70,41 +70,47 @@ describe("xp", () => {
     });
 
     it("inverts xpForLevel for sample levels", () => {
-      for (const L of [1, 5, 19, 20, 35, 49, 50, 65, 79, 80, 90, 99, 100]) {
+      for (const L of [1, 5, 11, 12, 25, 29, 30, 45, 59, 60, 80, 99, 100]) {
         expect(levelForXp(xpForLevel(L))).toBe(L);
       }
     });
 
     it("xp just below a boundary returns level - 1", () => {
-      expect(levelForXp(4_999)).toBe(19);
-      expect(levelForXp(49_999)).toBe(49);
-      expect(levelForXp(249_999)).toBe(79);
+      expect(levelForXp(1_999)).toBe(11);
+      expect(levelForXp(14_999)).toBe(29);
+      expect(levelForXp(99_999)).toBe(59);
       expect(levelForXp(999_999)).toBe(99);
     });
   });
 
-  describe("phaseForLevel — transitions exactly at 20/50/80/100", () => {
-    it("hatchling at 1..19", () => {
-      expect(phaseForLevel(1)).toBe("hatchling");
-      expect(phaseForLevel(10)).toBe("hatchling");
-      expect(phaseForLevel(19)).toBe("hatchling");
+  describe("phaseForLevel — transitions exactly at 5/12/30/60/100", () => {
+    it("egg at 1..4", () => {
+      expect(phaseForLevel(1)).toBe("egg");
+      expect(phaseForLevel(2)).toBe("egg");
+      expect(phaseForLevel(4)).toBe("egg");
     });
 
-    it("junior at 20..49", () => {
+    it("hatchling at 5..11", () => {
+      expect(phaseForLevel(5)).toBe("hatchling");
+      expect(phaseForLevel(8)).toBe("hatchling");
+      expect(phaseForLevel(11)).toBe("hatchling");
+    });
+
+    it("junior at 12..29", () => {
+      expect(phaseForLevel(12)).toBe("junior");
       expect(phaseForLevel(20)).toBe("junior");
-      expect(phaseForLevel(35)).toBe("junior");
-      expect(phaseForLevel(49)).toBe("junior");
+      expect(phaseForLevel(29)).toBe("junior");
     });
 
-    it("adult at 50..79", () => {
-      expect(phaseForLevel(50)).toBe("adult");
-      expect(phaseForLevel(65)).toBe("adult");
-      expect(phaseForLevel(79)).toBe("adult");
+    it("adult at 30..59", () => {
+      expect(phaseForLevel(30)).toBe("adult");
+      expect(phaseForLevel(45)).toBe("adult");
+      expect(phaseForLevel(59)).toBe("adult");
     });
 
-    it("elder at 80..99", () => {
+    it("elder at 60..99", () => {
+      expect(phaseForLevel(60)).toBe("elder");
       expect(phaseForLevel(80)).toBe("elder");
-      expect(phaseForLevel(90)).toBe("elder");
       expect(phaseForLevel(99)).toBe("elder");
     });
 
@@ -126,10 +132,10 @@ describe("xp", () => {
       expect(p.isMaxed).toBe(false);
     });
 
-    it("partway through hatchling phase", () => {
-      const p = nextLevelProgress(2_500);
+    it("partway through the curve (early levels)", () => {
+      const p = nextLevelProgress(1_000);
       expect(p.currentLevel).toBeGreaterThanOrEqual(1);
-      expect(p.currentLevel).toBeLessThan(20);
+      expect(p.currentLevel).toBeLessThan(12);
       expect(p.ratio).toBeGreaterThan(0);
       expect(p.ratio).toBeLessThan(1);
       expect(p.isMaxed).toBe(false);
@@ -154,7 +160,7 @@ describe("xp", () => {
     });
 
     it("ratio always lies in [0, 1] across the curve", () => {
-      for (const xp of [0, 100, 1_000, 4_999, 5_000, 25_000, 100_000, 250_000, 999_999]) {
+      for (const xp of [0, 100, 1_000, 1_999, 2_000, 8_000, 15_000, 50_000, 100_000, 999_999]) {
         const p = nextLevelProgress(xp);
         expect(p.ratio).toBeGreaterThanOrEqual(0);
         expect(p.ratio).toBeLessThanOrEqual(1);

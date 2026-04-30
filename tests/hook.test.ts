@@ -208,15 +208,31 @@ describe("applyHookEvent (pure)", () => {
   it("level recompute and pendingLevelUp on threshold cross", async () => {
     const { hook, petEngine, schema } = await loadModules();
     const s = schema.createInitialState(testPet(petEngine), 0);
-    // Level 2 starts at xpForLevel(2). For our piecewise curve that's small —
-    // a hatch (500 xp) easily crosses it. Here we drive a prompt that will
-    // trigger hatch on the very first prompt: hatch fires at promptsTotal>=1
-    // and grants 500 xp on top of the +5 prompt xp.
+    // Pre-seed XP just below level 5 (the egg → hatchling boundary). The
+    // next prompt awards +5 XP, which combined with the now-eligible hatch
+    // achievement (+500 XP) crosses well past level 5 and flags
+    // pendingLevelUp.
+    s.progress.xp = 600; // safely above xpForLevel(5)
+    s.progress.level = 5;
+    s.progress.phase = "hatchling";
+    hook.applyHookEvent(s, "prompt", { session_id: "s1" }, noonOf(2026, 4, 30));
+    // Hatch fires on the prompt (level >= 5) → +500 xp on top of the +5
+    // prompt xp.
+    expect(s.progress.xp).toBeGreaterThanOrEqual(600 + 5 + 500);
+    expect(s.progress.level).toBeGreaterThan(5);
+    expect(s.progress.pendingLevelUp).toBe(true);
+    expect(s.achievements.unlocked).toContain("hatch");
+  });
+
+  it("hatch does NOT fire while pet is still in the egg phase", async () => {
+    const { hook, petEngine, schema } = await loadModules();
+    const s = schema.createInitialState(testPet(petEngine), 0);
+    expect(s.progress.phase).toBe("egg");
     expect(s.progress.level).toBe(1);
     hook.applyHookEvent(s, "prompt", { session_id: "s1" }, noonOf(2026, 4, 30));
-    expect(s.progress.xp).toBeGreaterThanOrEqual(505);
-    expect(s.progress.level).toBeGreaterThan(1);
-    expect(s.progress.pendingLevelUp).toBe(true);
+    // First prompt grants only +5 xp, not enough to reach level 5 → no hatch.
+    expect(s.achievements.unlocked).not.toContain("hatch");
+    expect(s.progress.phase).toBe("egg");
   });
 
   it("active sessions are independently keyed by session_id", async () => {
@@ -352,9 +368,9 @@ describe("runHook (state I/O)", () => {
     await Promise.all(tasks);
     const s = await state.readState();
     expect(s.counters.promptsTotal).toBe(N);
-    // Each prompt grants +5 xp; the very first one also unlocks `hatch`
-    // (+500 xp). Streak achievement isn't triggered (single day).
-    // We assert promptsTotal exactly; xp is at least N*5.
+    // Each prompt grants +5 xp. Hatch no longer fires on the first prompt
+    // (V1.1: requires level >= 5 — the pet stays in the egg phase here),
+    // so the only XP is from the prompts themselves.
     expect(s.progress.xp).toBeGreaterThanOrEqual(N * 5);
   });
 

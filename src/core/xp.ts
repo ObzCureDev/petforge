@@ -1,36 +1,37 @@
 /**
  * XP / level / phase engine.
  *
- * Spec §8. The level curve is piecewise non-linear, anchored at 5 boundary
- * (level, xp) pairs. Within each segment the curve is `t^1.55` interpolation.
- * The 5 anchor values are part of the locked design and must be returned
- * exactly by `xpForLevel`:
+ * Spec §8 (V1.1). The level curve is piecewise non-linear, anchored at 5
+ * boundary (level, xp) pairs. Within each segment the curve is `t^1.55`
+ * interpolation. The 5 anchor values are part of the locked design and must
+ * be returned exactly by `xpForLevel`:
  *
  *     level   xp
  *      1            0
- *     20        5_000
- *     50       50_000
- *     80      250_000
+ *     12        2_000
+ *     30       15_000
+ *     60      100_000
  *    100    1_000_000
  *
  * Levels are capped at 100 for display purposes; cumulative XP is **not**
  * capped — the user can keep accumulating XP past 1M.
  *
- * Phase mapping (spec §8):
- *     hatchling  1..19
- *     junior    20..49
- *     adult     50..79
- *     elder     80..99
+ * Phase mapping (V1.1):
+ *     egg         1..4
+ *     hatchling   5..11
+ *     junior     12..29
+ *     adult      30..59
+ *     elder      60..99
  *     mythic       100
  */
 
 import type { Phase } from "./schema.js";
 
-const LEVEL_BOUNDARIES = [
+export const LEVEL_BOUNDARIES = [
   { level: 1, xp: 0 },
-  { level: 20, xp: 5_000 },
-  { level: 50, xp: 50_000 },
-  { level: 80, xp: 250_000 },
+  { level: 12, xp: 2_000 },
+  { level: 30, xp: 15_000 },
+  { level: 60, xp: 100_000 },
   { level: 100, xp: 1_000_000 },
 ] as const;
 
@@ -77,10 +78,11 @@ export function levelForXp(xp: number): number {
 
 export function phaseForLevel(level: number): Phase {
   if (level >= 100) return "mythic";
-  if (level >= 80) return "elder";
-  if (level >= 50) return "adult";
-  if (level >= 20) return "junior";
-  return "hatchling";
+  if (level >= 60) return "elder";
+  if (level >= 30) return "adult";
+  if (level >= 12) return "junior";
+  if (level >= 5) return "hatchling";
+  return "egg";
 }
 
 export interface LevelProgress {

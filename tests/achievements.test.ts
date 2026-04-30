@@ -85,15 +85,58 @@ describe("achievements", () => {
   });
 
   describe("checkAchievementsForEvent", () => {
-    it("hatch fires on first prompt", () => {
+    it("hatch does NOT fire while pet is still in egg phase (level < 5)", () => {
       const s = freshState();
       s.counters.promptsTotal = 1;
+      s.progress.level = 1;
       const newly = checkAchievementsForEvent(s, "prompt", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toEqual(["hatch"]);
+      expect(newly).not.toContain("hatch");
+    });
+
+    it("hatch fires when pet reaches level 5 (eclosion) on prompt", () => {
+      const s = freshState();
+      s.counters.promptsTotal = 5;
+      s.progress.level = 5;
+      const newly = checkAchievementsForEvent(s, "prompt", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("hatch");
       expect(s.achievements.pendingUnlocks).toContain("hatch");
+    });
+
+    it("hatch can fire on post_tool_use too (any XP-changing event)", () => {
+      const s = freshState();
+      s.counters.toolUseTotal = 1;
+      s.progress.level = 5;
+      const newly = checkAchievementsForEvent(s, "post_tool_use", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("hatch");
+    });
+
+    it("hatch can fire on stop event when level >= 5", () => {
+      const s = freshState();
+      s.progress.level = 5;
+      const newly = checkAchievementsForEvent(s, "stop", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("hatch");
+    });
+
+    it("hatch can fire on session_end event when level >= 5", () => {
+      const s = freshState();
+      s.progress.level = 5;
+      const newly = checkAchievementsForEvent(s, "session_end", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("hatch");
     });
 
     it("first_tool fires on first tool use", () => {
@@ -255,6 +298,7 @@ describe("achievements", () => {
     it("does not re-fire already-unlocked achievement", () => {
       const s = freshState();
       s.counters.promptsTotal = 1;
+      s.progress.level = 5;
       checkAchievementsForEvent(s, "prompt", { sessionId: "s1", now: Date.now() });
       const second = checkAchievementsForEvent(s, "prompt", {
         sessionId: "s1",
