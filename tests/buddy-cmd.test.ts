@@ -142,3 +142,103 @@ describe("buddyCli", () => {
     expect(stdoutBuf).toContain("(no change)");
   });
 });
+
+describe("runBuddyImport", () => {
+  it("from file: stores ASCII, flips toggle to 'on', returns line count", async () => {
+    const ascii = "  ʌ_ʌ  \n /o o\\ \n |   |";
+    const file = path.join(dir, "card.txt");
+    await fs.writeFile(file, ascii, "utf8");
+    const { runBuddyImport, runBuddyCommand } = await import("../src/commands/buddy.js");
+
+    const res = await runBuddyImport({ source: { file }, clear: false });
+    expect(res.cleared).toBe(false);
+    expect(res.lines).toBe(3);
+    expect(res.bytesStored).toBe(ascii.length);
+    expect(res.toggle).toBe("on");
+
+    const status = await runBuddyCommand(undefined);
+    expect(status.hasCard).toBe(true);
+    expect(status.cardLines).toBe(3);
+    expect(status.toggle).toBe("on");
+  });
+
+  it("strips a trailing newline but preserves internal newlines", async () => {
+    const file = path.join(dir, "card.txt");
+    await fs.writeFile(file, "row1\nrow2\n", "utf8");
+    const { runBuddyImport, runBuddyCommand } = await import("../src/commands/buddy.js");
+
+    const res = await runBuddyImport({ source: { file }, clear: false });
+    expect(res.bytesStored).toBe("row1\nrow2".length);
+    expect(res.lines).toBe(2);
+    const status = await runBuddyCommand(undefined);
+    expect(status.cardLines).toBe(2);
+  });
+
+  it("rejects empty input", async () => {
+    const file = path.join(dir, "empty.txt");
+    await fs.writeFile(file, "", "utf8");
+    const { runBuddyImport } = await import("../src/commands/buddy.js");
+    await expect(runBuddyImport({ source: { file }, clear: false })).rejects.toThrow(/empty/);
+  });
+
+  it("rejects oversized input (>32 KB)", async () => {
+    const file = path.join(dir, "big.txt");
+    await fs.writeFile(file, "x".repeat(33 * 1024), "utf8");
+    const { runBuddyImport } = await import("../src/commands/buddy.js");
+    await expect(runBuddyImport({ source: { file }, clear: false })).rejects.toThrow(/oversized/);
+  });
+
+  it("clear: wipes cache, leaves toggle as-is", async () => {
+    const file = path.join(dir, "card.txt");
+    await fs.writeFile(file, "abc", "utf8");
+    const { runBuddyImport, runBuddyCommand } = await import("../src/commands/buddy.js");
+
+    await runBuddyImport({ source: { file }, clear: false });
+    const cleared = await runBuddyImport({ source: "stdin", clear: true });
+    expect(cleared.cleared).toBe(true);
+    expect(cleared.bytesStored).toBe(0);
+    expect(cleared.toggle).toBe("on");
+
+    const status = await runBuddyCommand(undefined);
+    expect(status.hasCard).toBe(false);
+    expect(status.toggle).toBe("on");
+  });
+
+  it("does NOT downgrade an existing 'off' or 'auto' on clear", async () => {
+    const { runBuddyCommand, runBuddyImport } = await import("../src/commands/buddy.js");
+    await runBuddyCommand("off");
+    await runBuddyImport({ source: "stdin", clear: true });
+    const status = await runBuddyCommand(undefined);
+    expect(status.toggle).toBe("off");
+  });
+});
+
+describe("pickBuddyFrame", () => {
+  it("returns undefined when userToggle is not 'on'", async () => {
+    const { pickBuddyFrame } = await import("../src/core/buddy.js");
+    const fakeState = {
+      buddy: { userToggle: "auto", cardCache: "hello" },
+    } as unknown as Parameters<typeof pickBuddyFrame>[0];
+    expect(pickBuddyFrame(fakeState)).toBeUndefined();
+  });
+
+  it("returns undefined when cardCache is empty/missing", async () => {
+    const { pickBuddyFrame } = await import("../src/core/buddy.js");
+    const noCache = {
+      buddy: { userToggle: "on", cardCache: null },
+    } as unknown as Parameters<typeof pickBuddyFrame>[0];
+    expect(pickBuddyFrame(noCache)).toBeUndefined();
+    const empty = {
+      buddy: { userToggle: "on", cardCache: "" },
+    } as unknown as Parameters<typeof pickBuddyFrame>[0];
+    expect(pickBuddyFrame(empty)).toBeUndefined();
+  });
+
+  it("returns the cache verbatim when toggle 'on' and cache non-empty", async () => {
+    const { pickBuddyFrame } = await import("../src/core/buddy.js");
+    const ok = {
+      buddy: { userToggle: "on", cardCache: "ʌ_ʌ\n|   |" },
+    } as unknown as Parameters<typeof pickBuddyFrame>[0];
+    expect(pickBuddyFrame(ok)).toBe("ʌ_ʌ\n|   |");
+  });
+});

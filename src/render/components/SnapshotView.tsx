@@ -7,6 +7,7 @@
 
 import { Box, Text } from "ink";
 import type React from "react";
+import { pickBuddyFrame } from "../../core/buddy.js";
 import type { State } from "../../core/schema.js";
 import { PetRenderer } from "./PetRenderer.js";
 import { XpBar } from "./XpBar.js";
@@ -18,9 +19,15 @@ export interface SnapshotViewProps {
 }
 
 export function SnapshotView({ state, frameIndex = 0 }: SnapshotViewProps): React.ReactElement {
+  const externalFrame = pickBuddyFrame(state);
   return (
     <Box flexDirection="column">
-      <PetRenderer pet={state.pet} phase={state.progress.phase} frameIndex={frameIndex} />
+      <PetRenderer
+        pet={state.pet}
+        phase={state.progress.phase}
+        frameIndex={frameIndex}
+        externalFrame={externalFrame}
+      />
       <Text>
         {state.pet.species.toUpperCase()} · {state.pet.rarity}
         {state.pet.shiny ? " ✨ shiny" : ""}

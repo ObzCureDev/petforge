@@ -109,6 +109,13 @@ export interface BuddyState {
   /** epoch ms. */
   lastChecked: number;
   userToggle: BuddyToggle;
+  /**
+   * User-imported Buddy ASCII (via `petforge buddy import`). When non-null
+   * AND `userToggle === "on"`, the renderer shows this verbatim instead of
+   * the species frame. Persistence is consensual — only set by an explicit
+   * import command, never from auto-detection.
+   */
+  cardCache?: string | null;
 }
 
 export interface Meta {
@@ -183,6 +190,7 @@ export const BuddyStateSchema = z.object({
   detected: z.boolean(),
   lastChecked: z.number(),
   userToggle: BuddyToggleSchema,
+  cardCache: z.string().nullable().optional(),
 });
 
 export const MetaSchema = z.object({

@@ -18,11 +18,28 @@
 
 import { spawn } from "node:child_process";
 import os from "node:os";
+import type { State } from "./schema.js";
 
 export interface BuddyDetectionResult {
   detected: boolean;
   /** Ephemeral — used by renderer only. NOT persisted. */
   cardOutput?: string;
+}
+
+/**
+ * Decide whether to display the user-imported Buddy ASCII instead of the
+ * species frame. Returns the cached card text (with the cache having been
+ * set explicitly via `petforge buddy import`) iff the user toggle is "on".
+ *
+ * The "on" gate keeps the import sticky-but-revertible: a user who imports
+ * a Buddy then later runs `petforge buddy off` keeps the cache (so they
+ * can re-enable later) but sees the PetForge visual in the meantime.
+ */
+export function pickBuddyFrame(state: State): string | undefined {
+  if (state.buddy.userToggle !== "on") return undefined;
+  const cache = state.buddy.cardCache;
+  if (cache && cache.length > 0) return cache;
+  return undefined;
 }
 
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h

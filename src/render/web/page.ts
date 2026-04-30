@@ -238,7 +238,11 @@ const CLIENT_JS = `
     var phase = s.progress.phase;
     var species = s.pet.species;
     var speciesFrames = (FRAMES[species] && FRAMES[species][phase]) || [];
-    var frame = speciesFrames.length > 0 ? speciesFrames[frameIdx % speciesFrames.length] : "";
+    var buddyOverride =
+      s.buddy && s.buddy.userToggle === "on" && s.buddy.cardCache ? s.buddy.cardCache : null;
+    var frame = buddyOverride
+      ? buddyOverride
+      : (speciesFrames.length > 0 ? speciesFrames[frameIdx % speciesFrames.length] : "");
     pet.textContent = frame;
     pet.className = "pet phase-" + phase + " rarity-" + s.pet.rarity + (s.pet.shiny ? " shiny" : "");
 

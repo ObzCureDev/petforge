@@ -7,6 +7,7 @@
 
 import { Box, Text } from "ink";
 import type React from "react";
+import { pickBuddyFrame } from "../../core/buddy.js";
 import type { State } from "../../core/schema.js";
 import { AchievementGrid } from "./AchievementGrid.js";
 import { ActivityBlock } from "./ActivityBlock.js";
@@ -22,11 +23,17 @@ export interface CardViewProps {
 
 export function CardView({ state, frameIndex = 0 }: CardViewProps): React.ReactElement {
   const { pet, progress, achievements } = state;
+  const externalFrame = pickBuddyFrame(state);
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
         <Box flexDirection="column" marginRight={2}>
-          <PetRenderer pet={pet} phase={progress.phase} frameIndex={frameIndex} />
+          <PetRenderer
+            pet={pet}
+            phase={progress.phase}
+            frameIndex={frameIndex}
+            externalFrame={externalFrame}
+          />
           <Text>
             {pet.species.toUpperCase()} · {pet.rarity}
             {pet.shiny ? " ✨ shiny" : ""}
