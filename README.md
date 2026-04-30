@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.0-blue" alt="Version"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="Node ≥ 20"></a>
 </p>
@@ -37,6 +37,7 @@ If you have **Claude Buddy** enabled, PetForge silently uses Buddy's sprite as y
 - 🪝 **5 official Claude Code hooks** — zero polling, instant updates
 - 📺 **Live watch mode** — `petforge watch` refreshes XP and counters every 500ms while you code
 - 📱 **Stream to your phone** — `petforge serve --lan` exposes a live web view via SSE
+- 📊 **OTel integration** — opt-in via `petforge collect`, unlocks 8 new achievements based on lines/tokens/cost
 - 🔒 **100% local** — zero telemetry, zero phone-home, zero account
 - 🧰 **Cross-platform** — Windows, macOS, Linux
 
@@ -68,6 +69,7 @@ You're done. Use Claude Code normally and watch your pet evolve.
 | `petforge watch` | Live mode: continuous animation + auto-refresh of XP / level / counters every 500ms (Ctrl+C / q to exit) |
 | `petforge buddy [on\|off\|auto]` | Toggle Claude Buddy visual integration |
 | `petforge serve [--port=N] [--lan] [--token=XXX]` | HTTP server with mobile-friendly web view (live updates via SSE) |
+| `petforge collect [--port=7879] [--forward=URL]` | OTLP/HTTP/JSON collector for Claude Code metrics (strict 127.0.0.1) |
 | `petforge doctor` | Health check (hooks installed, state valid, Buddy detected, etc.) |
 
 ---
@@ -162,6 +164,51 @@ petforge serve --lan
 By default the server binds to `127.0.0.1` (loopback only). Pass `--lan` to expose it on `0.0.0.0` for phone access. For shared networks, use `--token=XXX` to require a shared secret in the URL (`?token=XXX`) or via a `Bearer` header.
 
 The server is **read-only** — it streams state and never mutates it.
+
+---
+
+## OpenTelemetry integration (V2.0)
+
+Claude Code emits rich metrics over OpenTelemetry — tokens, cost, lines added/removed, accept/reject decisions, commits, PRs. PetForge can ingest these to unlock 8 new achievements and richer stats.
+
+### Setup (one-command)
+
+```bash
+petforge init --otel       # patches ~/.claude/settings.json with OTel env vars
+petforge collect           # starts the local OTLP collector (foreground)
+```
+
+In a separate terminal you keep open while coding:
+
+```bash
+petforge collect &         # background
+```
+
+Restart Claude Code so it picks up the new env vars. After the first push (~30s), `petforge card` will show a second activity line:
+
+```
+Lines: +8,234 / -1,109 · Tokens: 1.2M · Cost: $4.30 · Cache: 78%
+```
+
+### Coexistence with other collectors
+
+If you already run a collector (Datadog, Honeycomb, Grafana Cloud), set:
+
+```bash
+export PETFORGE_OTEL_FORWARD=http://your-collector:4318/v1/metrics
+```
+
+PetForge will fan-out the raw payload to that URL (fire-and-forget, 1s timeout) after ingesting locally.
+
+### Disabling
+
+```bash
+petforge init --no-otel    # strip env vars, leave OTel counters intact
+```
+
+### Security
+
+The collector binds **strictly to `127.0.0.1`** — no LAN exposure flag. Claude Code's OTel payload contains truncated user prompts and file paths. Multi-machine setups must front this with their own auth (mTLS / nginx).
 
 ---
 

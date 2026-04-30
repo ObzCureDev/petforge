@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.0.0 — 2026-04-30
+
+### Features
+- New `petforge collect` command: long-running OTLP/HTTP/JSON collector that ingests Claude Code metrics into PetForge state.
+- 8 new OTel-gated achievements: Code Architect (10K lines), Code Titan (100K lines), Token Whisperer ⚡ (1M tokens), Cache Lord (≥80% cache hit ratio), Frugal Coder (100 prompts ≤ $1), Big Spender ($100 cumulative), PR Machine (50 PRs), Picky Reviewer (50 edits rejected).
+- New `petforge init --otel` / `--no-otel` flags: one-command setup of Claude Code OTel env vars in `~/.claude/settings.json`.
+- New OTel activity line in `petforge card` / `serve` / `watch`: lines added/removed, total tokens, cost, cache hit ratio. Shown only when OTel data has been ingested.
+- New `petforge doctor` checks: OTel env presence, collector reachable, recent ingest.
+- Optional fan-out via `PETFORGE_OTEL_FORWARD=URL` (or `--forward=URL`): chain to existing OTel collectors (Datadog, Honeycomb, Grafana).
+
+### Architecture
+- New `state.counters.otel` block (cumulative counters). Optional in schema — V1.x states migrate transparently.
+- Collector binds **strictly to 127.0.0.1**. No `--lan` flag (payload contains user prompts and file paths).
+- OTLP/HTTP JSON only — no protobuf dependency.
+- Cumulative-delta aggregator with in-memory memo per (metric, attrs) tuple.
+
+### Migration
+V1.x → V2.0: state.json gains `counters.otel` automatically on first read. `schemaVersion` unchanged at 1. Existing achievements / hooks behaviour unchanged.
+
+### Out of scope (future)
+- V2.1: append-only event store (`events.ndjson`), heatmap in `serve`, insights generation
+- V2.2: cinematic milestones, WISDOM cosmetic stat
+
 ## 1.2.0 — 2026-04-30
 
 ### Features
