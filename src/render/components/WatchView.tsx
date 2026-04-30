@@ -14,6 +14,7 @@
  * configured keys (Ctrl+C / q / Esc).
  */
 
+import { performance } from "node:perf_hooks";
 import { Box, useApp, useInput } from "ink";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -71,6 +72,20 @@ export function WatchView({
       clearInterval(id);
     };
   }, [pollMs]);
+
+  // Belt-and-suspenders: clear the perf_hooks buffer every 30s in case any
+  // dependency still emits marks/measures (proper-lockfile retries, fs ops,
+  // upstream React/Ink). Defensive — production-mode build is the primary
+  // mitigation; this just prevents long-running watches from drifting.
+  useEffect(() => {
+    const id = setInterval(() => {
+      performance.clearMarks();
+      performance.clearMeasures();
+    }, 30_000);
+    return (): void => {
+      clearInterval(id);
+    };
+  }, []);
 
   useInput((input, key) => {
     if (key.escape || input === "q" || (key.ctrl && input === "c")) {

@@ -15,4 +15,10 @@ export default defineConfig({
   splitting: false,
   sourcemap: false,
   minify: false,
+  // Pin NODE_ENV so React/Ink don't emit perf_hooks measures at every render.
+  // Without this, `petforge watch` (8 FPS rerender) leaks ~1M perf entries
+  // into the global buffer within hours and Node prints a memory-leak warning.
+  define: {
+    "process.env.NODE_ENV": '"production"',
+  },
 });
