@@ -16,8 +16,8 @@ describe("xp", () => {
     it("xpForLevel(12) === 2_000", () => {
       expect(xpForLevel(12)).toBe(2_000);
     });
-    it("xpForLevel(30) === 15_000", () => {
-      expect(xpForLevel(30)).toBe(15_000);
+    it("xpForLevel(30) === 30_000", () => {
+      expect(xpForLevel(30)).toBe(30_000);
     });
     it("xpForLevel(60) === 100_000", () => {
       expect(xpForLevel(60)).toBe(100_000);
@@ -59,7 +59,7 @@ describe("xp", () => {
     it("xp at boundary returns the boundary level", () => {
       expect(levelForXp(0)).toBe(1);
       expect(levelForXp(2_000)).toBe(12);
-      expect(levelForXp(15_000)).toBe(30);
+      expect(levelForXp(30_000)).toBe(30);
       expect(levelForXp(100_000)).toBe(60);
       expect(levelForXp(1_000_000)).toBe(100);
     });
@@ -77,7 +77,7 @@ describe("xp", () => {
 
     it("xp just below a boundary returns level - 1", () => {
       expect(levelForXp(1_999)).toBe(11);
-      expect(levelForXp(14_999)).toBe(29);
+      expect(levelForXp(29_999)).toBe(29);
       expect(levelForXp(99_999)).toBe(59);
       expect(levelForXp(999_999)).toBe(99);
     });

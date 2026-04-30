@@ -114,8 +114,8 @@ Hit XP thresholds → level up → unlock the next evolution phase. Achievements
 |---|---|---|---|
 | 🥚 **Egg** | 1–4 | 0 → ~500 | Egg trembling, fissures appear progressively |
 | 🐣 **Hatchling** | 5–11 | ~500 → 2 000 | Just hatched — first species silhouette |
-| 🐥 **Junior** | 12–29 | 2 000 → 15 000 | Growth phase, gold ANSI halo |
-| 🦎 **Adult** | 30–59 | 15 000 → 100 000 | Peak form, elaborate ASCII |
+| 🐥 **Junior** | 12–29 | 2 000 → 30 000 | Growth phase, gold ANSI halo |
+| 🦎 **Adult** | 30–59 | 30 000 → 100 000 | Peak form, elaborate ASCII |
 | 🐉 **Elder** | 60–99 | 100 000 → 1 000 000 | Sage, shimmer overlay |
 | 🌟 **Mythic** | 100 | 1 000 000+ | Apotheosis: crown glyph + pulsation |
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.2 — 2026-04-30
+
+### Balance
+- **Junior phase doubled**: `xpForLevel(30)` is now `30_000` (was `15_000`). The Junior phase (levels 12–29) is twice as long to better match the spec promise of "Junior in a couple of weeks of regular use" — early-game progression was running ~2× too fast in real-world tests. Adult / Elder / Mythic boundaries unchanged.
+
+### Migration
+Existing states are unaffected at rest. Users currently in the Junior range will recompute to a slightly lower level on the next hook event (e.g. someone at xp=8000 was level 22 under the old curve, will be level 20 under the new one). XP cumulative, achievements, and pet identity are preserved.
+
 ## 2.0.1 — 2026-04-30
 
 ### Fixes

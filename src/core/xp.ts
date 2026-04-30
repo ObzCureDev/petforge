@@ -9,7 +9,7 @@
  *     level   xp
  *      1            0
  *     12        2_000
- *     30       15_000
+ *     30       30_000
  *     60      100_000
  *    100    1_000_000
  *
@@ -30,7 +30,7 @@ import type { Phase } from "./schema.js";
 export const LEVEL_BOUNDARIES = [
   { level: 1, xp: 0 },
   { level: 12, xp: 2_000 },
-  { level: 30, xp: 15_000 },
+  { level: 30, xp: 30_000 },
   { level: 60, xp: 100_000 },
   { level: 100, xp: 1_000_000 },
 ] as const;
