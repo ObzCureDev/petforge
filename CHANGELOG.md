@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.1.0 — 2026-05-01
+
+### Features
+
+- **`petforge up [--lan] [--port=N] [--collect-port=N] [--token=XXX] [--forward=URL]`** — one-command launcher that starts the OTel collector AND the web view in the same process. Prefixed output (`[serve]` / `[collect]` / `[up]`), single Ctrl+C kills both, clean abort if either fails to bind. Solves the "I have to remember two terminals" friction and avoids the stale-collector strip bug below.
+- **`petforge buddy import [--from=FILE] [--clear]`** — manually pin a Buddy ASCII as your pet's visual. Reads from stdin by default, `--from=FILE` for a file, or `--clear` to wipe. Auto-flips `userToggle` to `on` so the import appears immediately. Stored in `state.buddy.cardCache` (new optional schema field — V2.0 states without it parse fine).
+- **Buddy card parser** — when the imported card matches Anthropic's `/buddy card` shape, PetForge auto-extracts:
+  - **Name** (Title-Case word, e.g. `Huddle`) → replaces `DAEMON` in the card header
+  - **Species** (UPPERCASE, e.g. `OCTOPUS`) → kept for future use
+  - **Rarity** word + ★ count → replaces `common` and drives the rarity glow
+  - **Stat lines** (`NAME ████ N`) → when ≥ 3 found, replaces FOCUS/GRIT/FLOW/CRAFT/SPARK on the right with the Buddy's own stats (DEBUGGING, PATIENCE, etc.). Auto-strips those same lines from the rendered visual so they don't appear twice.
+- **Daemon visual rework** — Junior, Adult, Elder, Mythic phases redrawn with a pyramid silhouette (no more "crushed-feet" look) and stable per-line indentation across animation frames.
+
+### Fixes
+
+- **Web pet centering** — the `<pre>` no longer uses `text-align: center`, which was re-centering each line individually and pushing the head/feet right of the body. `width: fit-content` + `margin: auto` keeps the ASCII art's leading spaces working as intended (head stays above the body's middle).
+
+### Compatibility
+
+No schema-breaking changes. `state.buddy.cardCache` is optional, V2.0.x states load and write back without it. The OTel block, hooks, achievements, and pet identity are all preserved across upgrade.
+
+### Known operational issue (documented)
+
+Long-running `petforge collect` processes started **before** an upgrade hold the old schema in memory and silently strip unknown fields (like `cardCache`) from `state.json` on every metrics push. Symptom: `petforge buddy import` prints success but the visual never appears. Fix: kill stale collectors before retesting (`petforge up` avoids this entirely — single process, clean shutdown). Documented in the README troubleshooting section.
+
 ## 2.0.2 — 2026-04-30
 
 ### Balance
