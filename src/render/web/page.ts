@@ -282,7 +282,6 @@ const CSS = `
   .ach.medal-platinum.unlocked .ach-pct      { color: #79c0ff; }
   .ach.medal-platinum.unlocked .ach-mark     { color: #79c0ff; }
   .ach-progress-label { margin: 0.2rem 0 0; color: #8b949e; font-size: 0.8rem; }
-  .activity { text-align: center; color: #c9d1d9; margin-top: 1rem; font-size: 0.85rem; }
   .status { text-align: center; color: #6e7681; font-size: 0.75rem; }
 
   /* rarity glows on the pet ASCII (text-shadow only, body color unchanged) */
@@ -329,6 +328,79 @@ const CLIENT_JS = `
   var ACH = JSON.parse(byId("achievements-data").textContent);
   var ACH_IDS = JSON.parse(byId("achievement-ids").textContent);
   var BOUNDARIES = JSON.parse(byId("boundaries").textContent);
+
+  var STAT_ORDER = ["debugging", "patience", "chaos", "wisdom", "snark"];
+  var PHASE_BOUNDARIES = [
+    { phase: "egg", level: 1 },
+    { phase: "hatchling", level: 5 },
+    { phase: "junior", level: 20 },
+    { phase: "adult", level: 50 },
+    { phase: "elder", level: 80 },
+    { phase: "mythic", level: 100 }
+  ];
+
+  function activeSessionCount(s) {
+    var as = s && s.counters && s.counters.activeSessions;
+    if (!as) return 0;
+    return Object.keys(as).length;
+  }
+
+  function isoDay(t) {
+    return new Date(t).toISOString().slice(0, 10);
+  }
+
+  function computeMood(s, nowMs) {
+    var active = activeSessionCount(s);
+    var hour = new Date(nowMs).getHours();
+    var isNightHour = hour >= 22 || hour < 2;
+
+    // Priority order: Night Owl > Coding > Resting > Focused.
+    if (active > 0 && isNightHour) return "Night Owl";
+    if (active > 0) return "Coding";
+
+    // Resting requires NO active session AND recent activity (today/yesterday).
+    var lastActive = s && s.counters && s.counters.lastActiveDate;
+    var streakDays = (s && s.counters && s.counters.streakDays) || 0;
+    var today = isoDay(nowMs);
+    var yesterday = isoDay(nowMs - 24 * 60 * 60 * 1000);
+    var recent = lastActive === today || lastActive === yesterday;
+    if (active === 0 && streakDays > 0 && recent) return "Resting";
+
+    return "Focused";
+  }
+
+  function computeTrait(pet) {
+    if (!pet || !pet.stats) return "";
+    var topName = STAT_ORDER[0];
+    var topValue = pet.stats[topName] || 0;
+    for (var i = 0; i < STAT_ORDER.length; i++) {
+      var name = STAT_ORDER[i];
+      var v = pet.stats[name] || 0;
+      // Strict > preserves canonical-order tie-break (NOT alphabetical):
+      // earlier-in-STAT_ORDER stats win when values are equal.
+      if (v > topValue) {
+        topName = name;
+        topValue = v;
+      }
+    }
+    return topName.charAt(0).toUpperCase() + topName.slice(1) + " Aura";
+  }
+
+  function nextPhaseProgress(level) {
+    if (level >= 100) return { nextPhase: null, percent: 100, label: "MAX - ascended" };
+    var current = PHASE_BOUNDARIES[0];
+    var next = PHASE_BOUNDARIES[1];
+    for (var i = 0; i < PHASE_BOUNDARIES.length - 1; i++) {
+      if (level >= PHASE_BOUNDARIES[i].level && level < PHASE_BOUNDARIES[i + 1].level) {
+        current = PHASE_BOUNDARIES[i];
+        next = PHASE_BOUNDARIES[i + 1];
+        break;
+      }
+    }
+    var ratio = (level - current.level) / (next.level - current.level);
+    var percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+    return { nextPhase: next.phase, percent: percent, label: next.phase + " - " + percent + "%" };
+  }
 
   function xpForLevel(level) {
     if (level <= 1) return 0;
@@ -589,7 +661,14 @@ const CLIENT_JS = `
     rarityEl.textContent = displayRarity;
     rarityEl.className = "rarity-tag-" + displayRarity;
     byId("phase").textContent = phase;
+    byId("level").textContent = String(s.progress.level);
     byId("shiny").hidden = !s.pet.shiny;
+
+    // V3.3 derived header rows.
+    byId("mood").textContent = computeMood(s, Date.now());
+    byId("trait").textContent = computeTrait(s.pet);
+    var evo = nextPhaseProgress(s.progress.level);
+    byId("next-evo").textContent = evo.label;
     var useBuddyStats = buddy.stats && buddy.stats.length >= 3;
 
     var prog = nextLevelProgress(s.progress.xp, s.progress.level);
@@ -606,8 +685,8 @@ const CLIENT_JS = `
         var bpct = Math.max(0, Math.min(100, bs.value));
         statsHtml += '<div class="stat">';
         statsHtml += '<span class="stat-name">' + bs.name + '</span>';
-        statsHtml += '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + bpct + '%"></div></div>';
         statsHtml += '<span class="stat-val">' + bs.value + '</span>';
+        statsHtml += '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + bpct + '%"></div></div>';
         statsHtml += '</div>';
       }
     } else {
@@ -618,8 +697,8 @@ const CLIENT_JS = `
         var pct = Math.max(0, Math.min(100, v));
         statsHtml += '<div class="stat">';
         statsHtml += '<span class="stat-name">' + k.toUpperCase() + '</span>';
-        statsHtml += '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + pct + '%"></div></div>';
         statsHtml += '<span class="stat-val">' + v + '</span>';
+        statsHtml += '<div class="stat-bar"><div class="stat-bar-fill" style="width:' + pct + '%"></div></div>';
         statsHtml += '</div>';
       }
     }
@@ -658,12 +737,13 @@ const CLIENT_JS = `
     byId("achievements").innerHTML = achHtml;
 
     byId("activity").textContent =
-      "Sessions: " + s.counters.sessionsTotal +
-      " · Streak: " + s.counters.streakDays + "d" +
-      " · Prompts: " + s.counters.promptsTotal +
-      " · Tools: " + s.counters.toolUseTotal;
+      "Sessions " + s.counters.sessionsTotal.toLocaleString() +
+      " · Streak " + s.counters.streakDays + "d" +
+      " · Prompts " + s.counters.promptsTotal.toLocaleString() +
+      " · Tools " + s.counters.toolUseTotal.toLocaleString();
 
     var o = s.counters && s.counters.otel;
+    var otelRow = byId("otel-row");
     var otelEl = byId("otel-activity");
     if (o && o.lastUpdate > 0) {
       var lines = "+" + (o.linesAdded || 0).toLocaleString() + " / -" + (o.linesRemoved || 0).toLocaleString();
@@ -671,10 +751,11 @@ const CLIENT_JS = `
       var cost = "$" + ((o.costUsdCents || 0) / 100).toFixed(2);
       var cv = (o.tokensIn || 0) + (o.tokensCacheRead || 0);
       var cachePct = cv > 0 ? Math.round((o.tokensCacheRead / cv) * 100) : 0;
-      otelEl.textContent = "Lines: " + lines + " · Tokens: " + tokens + " · Cost: " + cost + " · Cache: " + cachePct + "%";
-      otelEl.hidden = false;
+      otelEl.textContent =
+        lines + " lines · " + tokens + " tokens · " + cost + " · Cache " + cachePct + "%";
+      otelRow.hidden = false;
     } else {
-      otelEl.hidden = true;
+      otelRow.hidden = true;
     }
     byId("status").textContent = "live";
   }
