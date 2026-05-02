@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.4.0 - 2026-05-02
+
+**Achievement organization** - the 46-entry list reorganized into 7 collapsible categories + a virtual "Near completion" group, plus a new top-of-list NEXT GOALS card.
+
+- 7 categories (prefix-mapped): Evolution / Streak / Activity / Time /
+  Coding / Economy / Collaboration. Each is a collapsible <details>
+  showing a status symbol + unlocked/total counts in the summary row.
+- "Near completion" virtual category appears at the top of the
+  achievements card when any in-progress achievement has ratio >= 0.7.
+  Top 5 sorted descending. Hidden entirely (DOM-absent) when empty.
+- NEXT GOALS card sits between STATS and ACHIEVEMENTS: top 5 in-progress
+  with preferred ratio >= 0.5, fallback to < 0.5 - merged so the slice
+  always fills when any in-progress achievement exists. Card hidden via
+  the standard hidden attribute (DOM-absent for layout) when empty.
+- Status symbols replace V3.2 marks: completed checkmark, in-progress
+  half-circle, locked empty circle. Pct hidden for completed (the
+  status symbol carries the info). Locked items show pct without bar.
+- Inline mini progress bars (0.25rem high) under each in-progress
+  achievement summary, tinted by medal color (bronze/silver/gold/
+  platinum). Hidden for completed and locked.
+- No state schema bump, no migration, no Ink TUI changes, no filter
+  tabs (deferred to V3.5+).
+
 ## 3.3.0 - 2026-05-02
 
 **Visual restructure** - web view re-laid in 4 distinct cards.
