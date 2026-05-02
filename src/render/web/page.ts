@@ -118,16 +118,62 @@ const CSS = `
     min-height: 100vh;
   }
   main { max-width: 480px; margin: 0 auto; }
+
+  /* Card system */
+  .card {
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    background: #0d1117;
+  }
+  .card-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: #6e7681;
+    text-transform: uppercase;
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+  }
+
+  /* Pet card */
   .pet {
     font-size: 1.1rem;
     line-height: 1.1;
     white-space: pre;
     text-align: center;
-    margin: 1rem auto;
+    margin: 0 auto 0.75rem;
     min-height: 8em;
   }
-  .header { text-align: center; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-  .xpbar { margin: 1.5rem 0; }
+  .header {
+    text-align: center;
+    color: #e6edf3;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin: 0.25rem 0;
+  }
+  .subheader {
+    text-align: center;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+  }
+  .kv-row {
+    display: grid;
+    grid-template-columns: 8em 1fr;
+    gap: 0.5rem;
+    margin: 0.2rem 0;
+    font-size: 0.9rem;
+  }
+  .kv-label { color: #8b949e; }
+  .kv-value { color: #e6edf3; }
+
+  /* XP bar */
+  .xpbar { margin: 0.75rem 0; }
   .xpbar-track {
     background: #21262d;
     height: 1rem;
@@ -141,23 +187,42 @@ const CSS = `
     transition: width 0.4s;
   }
   .xpbar-label { text-align: center; color: #c9d1d9; margin: 0.25rem 0; font-size: 0.9rem; }
-  h2 {
+
+  /* Run card */
+  .run-line {
+    display: grid;
+    grid-template-columns: 3em 1fr;
+    gap: 0.5rem;
+    margin: 0.3rem 0;
     font-size: 0.85rem;
-    letter-spacing: 0.1em;
-    color: #8b949e;
-    margin: 1rem 0 0.5rem;
+    line-height: 1.4;
   }
-  .stat { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
-  .stat-name { width: 6em; color: #c9d1d9; font-size: 0.85rem; }
+  .run-prefix {
+    color: #6e7681;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+  }
+  .activity { color: #c9d1d9; margin: 0; }
+
+  /* Stats card - 3-column grid: name | value | bar */
+  .stat {
+    display: grid;
+    grid-template-columns: 7em 2.5em 1fr;
+    gap: 0.5rem;
+    align-items: center;
+    margin: 0.3rem 0;
+  }
+  .stat-name { color: #c9d1d9; font-size: 0.85rem; }
+  .stat-val { color: #c9d1d9; font-size: 0.85rem; text-align: right; }
   .stat-bar {
-    flex: 1;
     background: #21262d;
     height: 0.6rem;
     border-radius: 0.2rem;
     overflow: hidden;
   }
   .stat-bar-fill { background: #2ea043; height: 100%; width: 0; transition: width 0.4s; }
-  .stat-val { width: 2.5em; text-align: right; color: #c9d1d9; font-size: 0.85rem; }
+
+  /* Legacy ul/li (unused in V3.3 but kept harmless) */
   ul { list-style: none; padding: 0; margin: 0; }
   li { padding: 0.15rem 0; color: #8b949e; }
   li.unlocked { color: #3fb950; }
