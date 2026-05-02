@@ -195,7 +195,7 @@ describe("snapshot rendering does not throw", () => {
     const state = createInitialState(pet);
     state.progress.xp = 1234;
     state.progress.level = 5;
-    state.achievements.unlocked = ["hatch"];
+    state.achievements.unlocked = ["hatch_hatchling"];
     state.counters.sessionsTotal = 7;
     state.counters.streakDays = 3;
     state.counters.promptsTotal = 42;
@@ -203,12 +203,12 @@ describe("snapshot rendering does not throw", () => {
 
     const { lastFrame, unmount } = render(React.createElement(CardView, { state }));
     const out = lastFrame() ?? "";
-    expect(out).toMatch(/L5/);
-    expect(out).toMatch(/FOCUS/);
-    expect(out).toMatch(/GRIT/);
-    expect(out).toMatch(/FLOW/);
-    expect(out).toMatch(/CRAFT/);
-    expect(out).toMatch(/SPARK/);
+    expect(out).toMatch(/LVL 5/);
+    expect(out).toMatch(/DEBUGGING/);
+    expect(out).toMatch(/PATIENCE/);
+    expect(out).toMatch(/CHAOS/);
+    expect(out).toMatch(/WISDOM/);
+    expect(out).toMatch(/SNARK/);
     expect(out).toMatch(/Hatch/);
     expect(out).toMatch(/Sessions: 7/);
     expect(out).toMatch(/Streak: 3d/);
@@ -233,7 +233,7 @@ describe("loadAndConsumeState (default command helper)", () => {
       (s) => {
         Object.assign(s, createInitialState(pet));
         s.progress.pendingLevelUp = true;
-        s.achievements.pendingUnlocks = ["hatch", "first_tool"];
+        s.achievements.pendingUnlocks = ["hatch_hatchling", "tool_5k"];
       },
       { onMissingOrCorrupt: () => createInitialState(pet) },
     );
@@ -241,7 +241,7 @@ describe("loadAndConsumeState (default command helper)", () => {
     const captured = await loadAndConsumeState();
     // Captured snapshot retains the flags (so the renderer can play cinematics).
     expect(captured.progress.pendingLevelUp).toBe(true);
-    expect(captured.achievements.pendingUnlocks).toEqual(["hatch", "first_tool"]);
+    expect(captured.achievements.pendingUnlocks).toEqual(["hatch_hatchling", "tool_5k"]);
 
     // On disk, flags are cleared.
     const onDisk = await readState();
@@ -260,19 +260,19 @@ describe("loadAndConsumeState (default command helper)", () => {
       (s) => {
         Object.assign(s, createInitialState(pet));
         s.progress.pendingLevelUp = true;
-        s.achievements.pendingUnlocks = ["hatch"];
+        s.achievements.pendingUnlocks = ["hatch_hatchling"];
       },
       { onMissingOrCorrupt: () => createInitialState(pet) },
     );
 
     const captured = await loadStateForView();
     expect(captured.progress.pendingLevelUp).toBe(true);
-    expect(captured.achievements.pendingUnlocks).toEqual(["hatch"]);
+    expect(captured.achievements.pendingUnlocks).toEqual(["hatch_hatchling"]);
 
     // Disk is unchanged.
     const onDisk = await readState();
     expect(onDisk.progress.pendingLevelUp).toBe(true);
-    expect(onDisk.achievements.pendingUnlocks).toEqual(["hatch"]);
+    expect(onDisk.achievements.pendingUnlocks).toEqual(["hatch_hatchling"]);
   });
 });
 
@@ -290,7 +290,7 @@ describe("non-TTY default command path", () => {
     const pet = generatePet({ username: "u", hostname: "h" });
     const state = createInitialState(pet);
     state.progress.pendingLevelUp = true;
-    state.achievements.pendingUnlocks = ["hatch"];
+    state.achievements.pendingUnlocks = ["hatch_hatchling"];
 
     const { lastFrame, frames, unmount } = render(
       React.createElement(DefaultApp, { state, isTTY: false }),
@@ -388,7 +388,7 @@ describe("DefaultApp staging", () => {
     const pet = generatePet({ username: "u", hostname: "h" });
     const state = createInitialState(pet);
     state.progress.pendingLevelUp = true;
-    state.achievements.pendingUnlocks = ["hatch"];
+    state.achievements.pendingUnlocks = ["hatch_hatchling"];
 
     let doneCalls = 0;
     const { lastFrame, unmount } = render(

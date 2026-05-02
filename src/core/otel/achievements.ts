@@ -64,18 +64,9 @@ export function checkOtelAchievements(state: State): AchievementId[] {
   // Cache: volume + ratio compound
   const cacheVolume = otel.tokensIn + otel.tokensCacheRead;
   const cacheRatio = cacheVolume > 0 ? otel.tokensCacheRead / cacheVolume : 0;
-  tryUnlock(
-    "cache_100k",
-    cacheVolume >= CACHE_VOL_BRONZE && cacheRatio >= CACHE_RATIO_80,
-  );
-  tryUnlock(
-    "cache_1m",
-    cacheVolume >= CACHE_VOL_SILVER && cacheRatio >= CACHE_RATIO_80,
-  );
-  tryUnlock(
-    "cache_10m",
-    cacheVolume >= CACHE_VOL_GOLD && cacheRatio >= CACHE_RATIO_90,
-  );
+  tryUnlock("cache_100k", cacheVolume >= CACHE_VOL_BRONZE && cacheRatio >= CACHE_RATIO_80);
+  tryUnlock("cache_1m", cacheVolume >= CACHE_VOL_SILVER && cacheRatio >= CACHE_RATIO_80);
+  tryUnlock("cache_10m", cacheVolume >= CACHE_VOL_GOLD && cacheRatio >= CACHE_RATIO_90);
 
   // Frugal: prompts >= N AND total cost <= ceiling
   const prompts = state.counters.promptsTotal;

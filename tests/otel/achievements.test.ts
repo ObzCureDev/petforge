@@ -29,83 +29,83 @@ describe("checkOtelAchievements", () => {
     expect(newly).toHaveLength(0);
   });
 
-  it("code_architect fires at 10k lines added", () => {
+  it("code_10k fires at 10k lines added", () => {
     const s = withOtel();
     otelOf(s).linesAdded = 10_000;
     const newly = checkOtelAchievements(s);
-    expect(newly).toContain("code_architect");
+    expect(newly).toContain("code_10k");
   });
 
-  it("code_titan fires at 100k lines added", () => {
+  it("code_50k fires at 50k lines added", () => {
     const s = withOtel();
-    otelOf(s).linesAdded = 100_000;
+    otelOf(s).linesAdded = 50_000;
     const newly = checkOtelAchievements(s);
-    expect(newly).toContain("code_titan");
-    expect(newly).toContain("code_architect"); // both fire
+    expect(newly).toContain("code_50k");
+    expect(newly).toContain("code_10k"); // both fire
   });
 
-  it("token_whisperer_v2 fires at 1M tokens (in+out)", () => {
+  it("token_1m fires at 1M tokens (in+out)", () => {
     const s = withOtel();
     otelOf(s).tokensIn = 600_000;
     otelOf(s).tokensOut = 400_000;
     const newly = checkOtelAchievements(s);
-    expect(newly).toContain("token_whisperer_v2");
+    expect(newly).toContain("token_1m");
   });
 
-  it("cache_lord requires ratio >= 0.80 AND >= 100k input+cache_read", () => {
+  it("cache_100k requires ratio >= 0.80 AND >= 100k input+cache_read", () => {
     const s = withOtel();
     otelOf(s).tokensIn = 20_000;
     otelOf(s).tokensCacheRead = 80_000;
     let newly = checkOtelAchievements(s);
-    expect(newly).toContain("cache_lord");
+    expect(newly).toContain("cache_100k");
 
     // ratio satisfied but volume too low
     const s2 = withOtel();
     otelOf(s2).tokensIn = 200;
     otelOf(s2).tokensCacheRead = 800;
     newly = checkOtelAchievements(s2);
-    expect(newly).not.toContain("cache_lord");
+    expect(newly).not.toContain("cache_100k");
   });
 
-  it("frugal_coder requires 100 prompts AND <= $1 cost", () => {
+  it("frugal_100p requires 100 prompts AND <= $1 cost", () => {
     const s = withOtel();
     s.counters.promptsTotal = 100;
     otelOf(s).costUsdCents = 100;
     let newly = checkOtelAchievements(s);
-    expect(newly).toContain("frugal_coder");
+    expect(newly).toContain("frugal_100p");
 
     const s2 = withOtel();
     s2.counters.promptsTotal = 100;
     otelOf(s2).costUsdCents = 101;
     newly = checkOtelAchievements(s2);
-    expect(newly).not.toContain("frugal_coder");
+    expect(newly).not.toContain("frugal_100p");
   });
 
-  it("big_spender at $100 cumulative", () => {
+  it("big_spender_100 at $100 cumulative", () => {
     const s = withOtel();
     otelOf(s).costUsdCents = 10_000;
     const newly = checkOtelAchievements(s);
-    expect(newly).toContain("big_spender");
+    expect(newly).toContain("big_spender_100");
   });
 
-  it("pr_machine at 50 PRs", () => {
+  it("pr_50 at 50 PRs", () => {
     const s = withOtel();
     otelOf(s).prCount = 50;
-    expect(checkOtelAchievements(s)).toContain("pr_machine");
+    expect(checkOtelAchievements(s)).toContain("pr_50");
   });
 
-  it("picky_reviewer at 50 edits rejected", () => {
+  it("picky_50 at 50 edits rejected", () => {
     const s = withOtel();
     otelOf(s).editsRejected = 50;
-    expect(checkOtelAchievements(s)).toContain("picky_reviewer");
+    expect(checkOtelAchievements(s)).toContain("picky_50");
   });
 
   it("no re-fire when already unlocked", () => {
     const s = withOtel();
     otelOf(s).linesAdded = 10_000;
-    s.achievements.unlocked.push("code_architect");
+    s.achievements.unlocked.push("code_10k");
     const newly = checkOtelAchievements(s);
-    expect(newly).not.toContain("code_architect");
+    expect(newly).not.toContain("code_10k");
   });
 
   it("XP awarded equals registry XP", () => {
@@ -113,6 +113,7 @@ describe("checkOtelAchievements", () => {
     otelOf(s).linesAdded = 10_000;
     const before = s.progress.xp;
     checkOtelAchievements(s);
-    expect(s.progress.xp).toBe(before + 3_000);
+    // code_10k is bronze tier = 1000 xp
+    expect(s.progress.xp).toBe(before + 1_000);
   });
 });

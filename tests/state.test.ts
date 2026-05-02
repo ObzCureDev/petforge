@@ -366,11 +366,7 @@ describe("V3.1 -> V3.2 achievement ID rename through readState", () => {
     await fs.writeFile(paths.STATE_FILE, JSON.stringify(fresh, null, 2), "utf8");
 
     const out = await state.readState();
-    expect(out.achievements.unlocked).toEqual([
-      "hatch_hatchling",
-      "tool_5k",
-      "hatch_mythic",
-    ]);
+    expect(out.achievements.unlocked).toEqual(["hatch_hatchling", "tool_5k", "hatch_mythic"]);
     // first_tool dropped; marathon renamed to marathon_4h
     expect(out.achievements.pendingUnlocks).toEqual(["marathon_4h"]);
   });

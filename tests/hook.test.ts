@@ -152,11 +152,14 @@ describe("applyHookEvent (pure)", () => {
     expect(s.counters.activeSessions.s1?.fileExtensions).toEqual([]);
   });
 
-  it("stop: +10 xp", async () => {
+  it("stop: +10 xp (plus hatch_egg one-shot since level >= 1)", async () => {
     const { hook, petEngine, schema } = await loadModules();
     const s = schema.createInitialState(testPet(petEngine), 0);
     hook.applyHookEvent(s, "stop", { session_id: "s1" }, noonOf(2026, 4, 30));
-    expect(s.progress.xp).toBe(10);
+    // stop awards +10 xp; on a fresh state, hatch_egg also fires (level >= 1)
+    // for an extra +50 xp = 60 total.
+    expect(s.progress.xp).toBe(10 + 50);
+    expect(s.achievements.unlocked).toContain("hatch_egg");
   });
 
   it("session_start: creates activeSessions entry, updates streak", async () => {
@@ -173,7 +176,7 @@ describe("applyHookEvent (pure)", () => {
     expect(s.counters.lastActiveDate).toBe("2026-04-30");
   });
 
-  it("session_end: +50 xp, sessions++, deletes activeSessions, fires marathon if >1h", async () => {
+  it("session_end: +50 xp, sessions++, deletes activeSessions, fires marathon if >4h", async () => {
     const { hook, petEngine, schema } = await loadModules();
     const s = schema.createInitialState(testPet(petEngine), 0);
     const start = noonOf(2026, 4, 30);
@@ -182,13 +185,13 @@ describe("applyHookEvent (pure)", () => {
       toolUseCount: 0,
       fileExtensions: [],
     };
-    const end = start + 60 * 60 * 1000 + 1; // > 1h
+    const end = start + 4 * 60 * 60 * 1000 + 1; // > 4h
     hook.applyHookEvent(s, "session_end", { session_id: "s1" }, end);
     expect(s.counters.sessionsTotal).toBe(1);
     expect(s.counters.activeSessions.s1).toBeUndefined();
-    // marathon (1000 xp) + session_end (50 xp) = 1050
-    expect(s.progress.xp).toBe(50 + 1000);
-    expect(s.achievements.unlocked).toContain("marathon");
+    // session_end (50) + marathon_4h (1000) + hatch_egg (50, level >= 1) = 1100
+    expect(s.progress.xp).toBe(50 + 1000 + 50);
+    expect(s.achievements.unlocked).toContain("marathon_4h");
   });
 
   it("session_end: deletes activeSessions even when no marathon", async () => {
@@ -202,36 +205,37 @@ describe("applyHookEvent (pure)", () => {
     };
     hook.applyHookEvent(s, "session_end", { session_id: "s1" }, start + 1000);
     expect(s.counters.activeSessions.s1).toBeUndefined();
-    expect(s.achievements.unlocked).not.toContain("marathon");
+    expect(s.achievements.unlocked).not.toContain("marathon_4h");
   });
 
   it("level recompute and pendingLevelUp on threshold cross", async () => {
     const { hook, petEngine, schema } = await loadModules();
     const s = schema.createInitialState(testPet(petEngine), 0);
     // Pre-seed XP just below level 5 (the egg → hatchling boundary). The
-    // next prompt awards +5 XP, which combined with the now-eligible hatch
-    // achievement (+500 XP) crosses well past level 5 and flags
-    // pendingLevelUp.
+    // next prompt awards +5 XP, which combined with the now-eligible
+    // hatch_hatchling achievement (+500 XP) crosses well past level 5 and
+    // flags pendingLevelUp.
     s.progress.xp = 600; // safely above xpForLevel(5)
     s.progress.level = 5;
     s.progress.phase = "hatchling";
     hook.applyHookEvent(s, "prompt", { session_id: "s1" }, noonOf(2026, 4, 30));
-    // Hatch fires on the prompt (level >= 5) → +500 xp on top of the +5
-    // prompt xp.
+    // hatch_hatchling fires on the prompt (level >= 5) → +500 xp on top of
+    // the +5 prompt xp.
     expect(s.progress.xp).toBeGreaterThanOrEqual(600 + 5 + 500);
     expect(s.progress.level).toBeGreaterThan(5);
     expect(s.progress.pendingLevelUp).toBe(true);
-    expect(s.achievements.unlocked).toContain("hatch");
+    expect(s.achievements.unlocked).toContain("hatch_hatchling");
   });
 
-  it("hatch does NOT fire while pet is still in the egg phase", async () => {
+  it("hatch_hatchling does NOT fire while pet is still in the egg phase", async () => {
     const { hook, petEngine, schema } = await loadModules();
     const s = schema.createInitialState(testPet(petEngine), 0);
     expect(s.progress.phase).toBe("egg");
     expect(s.progress.level).toBe(1);
     hook.applyHookEvent(s, "prompt", { session_id: "s1" }, noonOf(2026, 4, 30));
-    // First prompt grants only +5 xp, not enough to reach level 5 → no hatch.
-    expect(s.achievements.unlocked).not.toContain("hatch");
+    // First prompt grants only +5 xp, not enough to reach level 5 → no
+    // hatch_hatchling.
+    expect(s.achievements.unlocked).not.toContain("hatch_hatchling");
     expect(s.progress.phase).toBe("egg");
   });
 
@@ -305,7 +309,7 @@ describe("applyHookEvent (pure)", () => {
         1000,
       );
     }
-    expect(s.achievements.unlocked).toContain("polyglot");
+    expect(s.achievements.unlocked).toContain("polyglot_5");
   });
 
   it("prunes activeSessions older than 24h on any hook event", async () => {

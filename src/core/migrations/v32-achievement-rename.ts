@@ -59,9 +59,7 @@ export interface AchievementListsV31Or32 {
  * running on V3.2 IDs is a no-op (they're not keys in the map, so they
  * pass through unchanged).
  */
-export function migrateV31Achievements(
-  lists: AchievementListsV31Or32,
-): AchievementListsV31Or32 {
+export function migrateV31Achievements(lists: AchievementListsV31Or32): AchievementListsV31Or32 {
   return {
     unlocked: rename(lists.unlocked),
     pendingUnlocks: rename(lists.pendingUnlocks),
@@ -73,7 +71,7 @@ function rename(ids: string[]): string[] {
   for (const id of ids) {
     if (id in MIGRATION_MAP_V31_TO_V32) {
       const mapped = MIGRATION_MAP_V31_TO_V32[id];
-      if (mapped === null) continue; // dropped
+      if (mapped === null || mapped === undefined) continue; // dropped
       out.push(mapped);
     } else {
       out.push(id); // unknown - keep as-is

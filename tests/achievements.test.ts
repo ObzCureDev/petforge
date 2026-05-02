@@ -30,17 +30,37 @@ function freshState() {
 
 describe("achievements", () => {
   describe("registry", () => {
-    it("has all 10 achievements with correct XP from spec §9", () => {
-      expect(ACHIEVEMENTS.hatch.xp).toBe(500);
-      expect(ACHIEVEMENTS.first_tool.xp).toBe(500);
-      expect(ACHIEVEMENTS.marathon.xp).toBe(1_000);
-      expect(ACHIEVEMENTS.night_owl.xp).toBe(1_500);
+    it("has hatch ladder with correct XP from spec §9", () => {
+      expect(ACHIEVEMENTS.hatch_egg.xp).toBe(50);
+      expect(ACHIEVEMENTS.hatch_hatchling.xp).toBe(500);
+      expect(ACHIEVEMENTS.hatch_junior.xp).toBe(2_000);
+      expect(ACHIEVEMENTS.hatch_adult.xp).toBe(5_000);
+      expect(ACHIEVEMENTS.hatch_elder.xp).toBe(10_000);
+      expect(ACHIEVEMENTS.hatch_mythic.xp).toBe(25_000);
+    });
+
+    it("medal-tiered families use bronze/silver/gold XP values", () => {
+      // Bronze = 1000, Silver = 3000, Gold = 10000.
+      expect(ACHIEVEMENTS.tool_5k.xp).toBe(1_000);
+      expect(ACHIEVEMENTS.tool_25k.xp).toBe(3_000);
+      expect(ACHIEVEMENTS.tool_100k.xp).toBe(10_000);
+      expect(ACHIEVEMENTS.marathon_4h.xp).toBe(1_000);
+      expect(ACHIEVEMENTS.marathon_12h.xp).toBe(3_000);
+      expect(ACHIEVEMENTS.marathon_24h.xp).toBe(10_000);
+      expect(ACHIEVEMENTS.night_200.xp).toBe(1_000);
+      expect(ACHIEVEMENTS.night_1k.xp).toBe(3_000);
+      expect(ACHIEVEMENTS.night_5k.xp).toBe(10_000);
+      expect(ACHIEVEMENTS.polyglot_5.xp).toBe(1_000);
+      expect(ACHIEVEMENTS.polyglot_8.xp).toBe(3_000);
+      expect(ACHIEVEMENTS.polyglot_12.xp).toBe(10_000);
+      expect(ACHIEVEMENTS.refactor_100.xp).toBe(1_000);
+    });
+
+    it("streak family has 4 tiers up to platinum (30k)", () => {
       expect(ACHIEVEMENTS.streak_3d.xp).toBe(1_000);
-      expect(ACHIEVEMENTS.streak_7d.xp).toBe(2_500);
-      expect(ACHIEVEMENTS.polyglot.xp).toBe(1_500);
-      expect(ACHIEVEMENTS.refactor_master.xp).toBe(2_000);
-      expect(ACHIEVEMENTS.tool_whisperer.xp).toBe(3_000);
-      expect(ACHIEVEMENTS.centurion.xp).toBe(5_000);
+      expect(ACHIEVEMENTS.streak_7d.xp).toBe(3_000);
+      expect(ACHIEVEMENTS.streak_30d.xp).toBe(10_000);
+      expect(ACHIEVEMENTS.streak_100d.xp).toBe(30_000);
     });
 
     it("each registered id matches its key", () => {
@@ -53,25 +73,27 @@ describe("achievements", () => {
   describe("isUnlocked / unlockAchievement", () => {
     it("isUnlocked returns false on a fresh state", () => {
       const s = freshState();
-      expect(isUnlocked(s, "hatch")).toBe(false);
+      expect(isUnlocked(s, "hatch_hatchling")).toBe(false);
     });
 
     it("unlocks once and returns true", () => {
       const s = freshState();
-      expect(unlockAchievement(s, "hatch")).toBe(true);
-      expect(s.achievements.unlocked).toContain("hatch");
-      expect(s.achievements.pendingUnlocks).toContain("hatch");
+      expect(unlockAchievement(s, "hatch_hatchling")).toBe(true);
+      expect(s.achievements.unlocked).toContain("hatch_hatchling");
+      expect(s.achievements.pendingUnlocks).toContain("hatch_hatchling");
       expect(s.progress.xp).toBe(500);
-      expect(isUnlocked(s, "hatch")).toBe(true);
+      expect(isUnlocked(s, "hatch_hatchling")).toBe(true);
     });
 
     it("is idempotent — second call no-ops and returns false", () => {
       const s = freshState();
-      unlockAchievement(s, "hatch");
+      unlockAchievement(s, "hatch_hatchling");
       const xpAfter1 = s.progress.xp;
-      expect(unlockAchievement(s, "hatch")).toBe(false);
-      expect(s.achievements.unlocked.filter((id) => id === "hatch")).toHaveLength(1);
-      expect(s.achievements.pendingUnlocks.filter((id) => id === "hatch")).toHaveLength(1);
+      expect(unlockAchievement(s, "hatch_hatchling")).toBe(false);
+      expect(s.achievements.unlocked.filter((id) => id === "hatch_hatchling")).toHaveLength(1);
+      expect(s.achievements.pendingUnlocks.filter((id) => id === "hatch_hatchling")).toHaveLength(
+        1,
+      );
       expect(s.progress.xp).toBe(xpAfter1);
     });
 
@@ -85,97 +107,94 @@ describe("achievements", () => {
   });
 
   describe("checkAchievementsForEvent", () => {
-    it("hatch does NOT fire while pet is still in egg phase (level < 5)", () => {
+    it("hatch_hatchling fires when level >= 5 on prompt", () => {
       const s = freshState();
-      s.counters.promptsTotal = 1;
-      s.progress.level = 1;
-      const newly = checkAchievementsForEvent(s, "prompt", {
-        sessionId: "s1",
-        now: Date.now(),
-      });
-      expect(newly).not.toContain("hatch");
-    });
-
-    it("hatch fires when pet reaches level 5 (eclosion) on prompt", () => {
-      const s = freshState();
-      s.counters.promptsTotal = 5;
       s.progress.level = 5;
       const newly = checkAchievementsForEvent(s, "prompt", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toContain("hatch");
-      expect(s.achievements.pendingUnlocks).toContain("hatch");
+      expect(newly).toContain("hatch_hatchling");
+      expect(newly).toContain("hatch_egg"); // also fires (level >= 1)
     });
 
-    it("hatch can fire on post_tool_use too (any XP-changing event)", () => {
+    it("hatch_mythic fires when level >= 100 (and all earlier hatches)", () => {
       const s = freshState();
-      s.counters.toolUseTotal = 1;
-      s.progress.level = 5;
-      const newly = checkAchievementsForEvent(s, "post_tool_use", {
-        sessionId: "s1",
-        now: Date.now(),
-      });
-      expect(newly).toContain("hatch");
-    });
-
-    it("hatch can fire on stop event when level >= 5", () => {
-      const s = freshState();
-      s.progress.level = 5;
+      s.progress.level = 100;
       const newly = checkAchievementsForEvent(s, "stop", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toContain("hatch");
+      expect(newly).toContain("hatch_mythic");
+      expect(newly).toContain("hatch_elder");
+      expect(newly).toContain("hatch_adult");
+      expect(newly).toContain("hatch_junior");
+      expect(newly).toContain("hatch_hatchling");
+      expect(newly).toContain("hatch_egg");
     });
 
-    it("hatch can fire on session_end event when level >= 5", () => {
+    it("tool_5k fires at 5000 tool uses", () => {
       const s = freshState();
-      s.progress.level = 5;
-      const newly = checkAchievementsForEvent(s, "session_end", {
-        sessionId: "s1",
-        now: Date.now(),
-      });
-      expect(newly).toContain("hatch");
-    });
-
-    it("first_tool fires on first tool use", () => {
-      const s = freshState();
-      s.counters.toolUseTotal = 1;
+      s.counters.toolUseTotal = 5_000;
       const newly = checkAchievementsForEvent(s, "post_tool_use", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toContain("first_tool");
+      expect(newly).toContain("tool_5k");
     });
 
-    it("tool_whisperer fires at 1000 tool uses (and first_tool too)", () => {
+    it("tool_25k fires at 25,000 (and tool_5k too)", () => {
       const s = freshState();
-      s.counters.toolUseTotal = 1_000;
+      s.counters.toolUseTotal = 25_000;
       const newly = checkAchievementsForEvent(s, "post_tool_use", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toContain("tool_whisperer");
-      expect(newly).toContain("first_tool");
+      expect(newly).toContain("tool_25k");
+      expect(newly).toContain("tool_5k");
     });
 
-    it("polyglot fires when 5 distinct extensions in a session", () => {
+    it("tool_100k fires at 100,000", () => {
+      const s = freshState();
+      s.counters.toolUseTotal = 100_000;
+      const newly = checkAchievementsForEvent(s, "post_tool_use", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("tool_100k");
+    });
+
+    it("polyglot tiers fire at 5/8/12 extensions in a session", () => {
       const s = freshState();
       s.counters.activeSessions.s1 = {
         startTs: 0,
-        toolUseCount: 5,
-        fileExtensions: [".ts", ".tsx", ".md", ".json", ".sh"],
+        toolUseCount: 12,
+        fileExtensions: [
+          ".ts",
+          ".tsx",
+          ".md",
+          ".json",
+          ".sh",
+          ".py",
+          ".go",
+          ".rs",
+          ".css",
+          ".html",
+          ".yml",
+          ".toml",
+        ],
       };
-      s.counters.toolUseTotal = 5;
+      s.counters.toolUseTotal = 12;
       const newly = checkAchievementsForEvent(s, "post_tool_use", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toContain("polyglot");
+      expect(newly).toContain("polyglot_5");
+      expect(newly).toContain("polyglot_8");
+      expect(newly).toContain("polyglot_12");
     });
 
-    it("polyglot does NOT fire with only 4 extensions", () => {
+    it("polyglot_5 does NOT fire with only 4 extensions", () => {
       const s = freshState();
       s.counters.activeSessions.s1 = {
         startTs: 0,
@@ -187,10 +206,10 @@ describe("achievements", () => {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).not.toContain("polyglot");
+      expect(newly).not.toContain("polyglot_5");
     });
 
-    it("refactor_master fires at 100 tool uses in a session", () => {
+    it("refactor_100 fires at 100 tool uses in a session", () => {
       const s = freshState();
       s.counters.activeSessions.s1 = {
         startTs: 0,
@@ -202,10 +221,10 @@ describe("achievements", () => {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toContain("refactor_master");
+      expect(newly).toContain("refactor_100");
     });
 
-    it("marathon fires on session_end with strictly >1h duration", () => {
+    it("marathon_4h fires on session_end with strictly >4h duration", () => {
       const s = freshState();
       const start = 1_700_000_000_000;
       s.counters.activeSessions.s1 = {
@@ -215,12 +234,58 @@ describe("achievements", () => {
       };
       const newly = checkAchievementsForEvent(s, "session_end", {
         sessionId: "s1",
-        now: start + 60 * 60 * 1000 + 1,
+        now: start + 4 * 60 * 60 * 1000 + 1,
       });
-      expect(newly).toContain("marathon");
+      expect(newly).toContain("marathon_4h");
     });
 
-    it("marathon does NOT fire on exactly 1h", () => {
+    it("marathon_4h also fires on prompt mid-session when active duration > 4h", () => {
+      const s = freshState();
+      const start = 1_700_000_000_000;
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const newly = checkAchievementsForEvent(s, "prompt", {
+        sessionId: "s1",
+        now: start + 4 * 60 * 60 * 1000 + 1,
+      });
+      expect(newly).toContain("marathon_4h");
+    });
+
+    it("marathon_12h fires when session > 12h", () => {
+      const s = freshState();
+      const start = 1_700_000_000_000;
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const newly = checkAchievementsForEvent(s, "post_tool_use", {
+        sessionId: "s1",
+        now: start + 12 * 60 * 60 * 1000 + 1,
+      });
+      expect(newly).toContain("marathon_12h");
+      expect(newly).toContain("marathon_4h");
+    });
+
+    it("marathon_24h fires when session > 24h", () => {
+      const s = freshState();
+      const start = 1_700_000_000_000;
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const newly = checkAchievementsForEvent(s, "post_tool_use", {
+        sessionId: "s1",
+        now: start + 24 * 60 * 60 * 1000 + 1,
+      });
+      expect(newly).toContain("marathon_24h");
+    });
+
+    it("marathon_4h does NOT fire on exactly 4h", () => {
       const s = freshState();
       const start = 1_700_000_000_000;
       s.counters.activeSessions.s1 = {
@@ -230,100 +295,95 @@ describe("achievements", () => {
       };
       const newly = checkAchievementsForEvent(s, "session_end", {
         sessionId: "s1",
-        now: start + 60 * 60 * 1000,
+        now: start + 4 * 60 * 60 * 1000,
       });
-      expect(newly).not.toContain("marathon");
+      expect(newly).not.toContain("marathon_4h");
     });
 
-    it("night_owl fires when nightOwlEvents reaches 50", () => {
+    it("night_200 fires when nightOwlEvents reaches 200", () => {
       const s = freshState();
-      s.counters.nightOwlEvents = 50;
+      s.counters.nightOwlEvents = 200;
       s.counters.promptsTotal = 1;
       const newly = checkAchievementsForEvent(s, "prompt", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).toContain("night_owl");
+      expect(newly).toContain("night_200");
     });
 
-    it("night_owl does NOT fire below 50 events", () => {
+    it("night_200 does NOT fire below 200 events", () => {
       const s = freshState();
-      s.counters.nightOwlEvents = 49;
+      s.counters.nightOwlEvents = 199;
       s.counters.promptsTotal = 1;
       const newly = checkAchievementsForEvent(s, "prompt", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(newly).not.toContain("night_owl");
+      expect(newly).not.toContain("night_200");
     });
 
-    it("streak_3d fires at 3 days, streak_7d at 7", () => {
+    it("night_1k fires at 1000 events", () => {
       const s = freshState();
-      s.counters.streakDays = 3;
-      const a = checkAchievementsForEvent(s, "session_start", {
-        sessionId: "s1",
-        now: Date.now(),
-      });
-      expect(a).toContain("streak_3d");
-      expect(a).not.toContain("streak_7d");
-
-      s.counters.streakDays = 7;
-      const b = checkAchievementsForEvent(s, "session_start", {
-        sessionId: "s1",
-        now: Date.now(),
-      });
-      expect(b).toContain("streak_7d");
-    });
-
-    it("centurion fires when level reaches 100 (on session_end)", () => {
-      const s = freshState();
-      s.progress.level = 100;
-      const newly = checkAchievementsForEvent(s, "session_end", {
-        sessionId: "s1",
-        now: Date.now(),
-      });
-      expect(newly).toContain("centurion");
-    });
-
-    it("centurion fires on stop event when level reaches 100", () => {
-      const s = freshState();
-      s.progress.level = 100;
-      const newly = checkAchievementsForEvent(s, "stop", {
-        sessionId: "s1",
-        now: Date.now(),
-      });
-      expect(newly).toContain("centurion");
-    });
-
-    it("does not re-fire already-unlocked achievement", () => {
-      const s = freshState();
+      s.counters.nightOwlEvents = 1000;
       s.counters.promptsTotal = 1;
-      s.progress.level = 5;
-      checkAchievementsForEvent(s, "prompt", { sessionId: "s1", now: Date.now() });
-      const second = checkAchievementsForEvent(s, "prompt", {
+      const newly = checkAchievementsForEvent(s, "prompt", {
         sessionId: "s1",
         now: Date.now(),
       });
-      expect(second).not.toContain("hatch");
-      expect(s.achievements.unlocked.filter((id) => id === "hatch")).toHaveLength(1);
+      expect(newly).toContain("night_1k");
+      expect(newly).toContain("night_200");
+    });
+
+    it("night_5k fires at 5000 events", () => {
+      const s = freshState();
+      s.counters.nightOwlEvents = 5000;
+      s.counters.promptsTotal = 1;
+      const newly = checkAchievementsForEvent(s, "prompt", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("night_5k");
+    });
+
+    it("streak_3d/7d/30d/100d fire at the right thresholds on session_start", () => {
+      const s = freshState();
+      s.counters.streakDays = 100;
+      const newly = checkAchievementsForEvent(s, "session_start", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("streak_3d");
+      expect(newly).toContain("streak_7d");
+      expect(newly).toContain("streak_30d");
+      expect(newly).toContain("streak_100d");
     });
 
     it("each achievement grants its XP exactly once across repeated checks", () => {
       const s = freshState();
-      s.counters.toolUseTotal = 1_000;
+      s.counters.toolUseTotal = 5_000;
       s.counters.activeSessions.s1 = {
         startTs: 0,
         toolUseCount: 100,
         fileExtensions: [".ts", ".tsx", ".md", ".json", ".sh"],
       };
-      // First check: should unlock first_tool, tool_whisperer, polyglot, refactor_master.
+      // First check unlocks: hatch_egg, tool_5k, polyglot_5, refactor_100,
+      // marathon_4h/12h/24h (active duration is `Date.now() - 0` which is way
+      // past all marathon thresholds).
       const a = checkAchievementsForEvent(s, "post_tool_use", {
         sessionId: "s1",
         now: Date.now(),
       });
       const xpAfter = s.progress.xp;
       expect(a.sort()).toEqual(
-        ["first_tool", "polyglot", "refactor_master", "tool_whisperer"].sort(),
+        [
+          "hatch_egg",
+          "marathon_4h",
+          "marathon_12h",
+          "marathon_24h",
+          "polyglot_5",
+          "refactor_100",
+          "tool_5k",
+        ].sort(),
       );
       // Second check: nothing new, no XP delta.
       const b = checkAchievementsForEvent(s, "post_tool_use", {
