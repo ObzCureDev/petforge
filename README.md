@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.1.0-blue" alt="Version"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-3.2.0-blue" alt="Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="Node ≥ 20"></a>
 </p>
@@ -20,7 +20,7 @@
 
 ## What
 
-PetForge gives your terminal a deterministic ASCII pet that **levels up from real coding activity**. It listens to Claude Code's official hooks (`UserPromptSubmit`, `PostToolUse`, `Stop`, `SessionStart`, `SessionEnd`), translates them into XP, evolutions across 6 phases, and 18 unlockable achievements (10 from hooks + 8 from optional OTel telemetry).
+PetForge gives your terminal a deterministic ASCII pet that **levels up from real coding activity**. It listens to Claude Code's official hooks (`UserPromptSubmit`, `PostToolUse`, `Stop`, `SessionStart`, `SessionEnd`), translates them into XP, evolutions across 6 phases, and 46 medal-tiered achievements (hook-driven + optional OTel-gated tiers).
 
 If you have a **Claude Buddy** you like, you can import its ASCII visual once and PetForge will use it as your pet's appearance — name, rarity, and stats included. Otherwise PetForge generates an original creature deterministically from your username + hostname.
 
@@ -31,7 +31,7 @@ If you have a **Claude Buddy** you like, you can import its ASCII visual once an
 ## Highlights
 
 - 🥚 **6 evolution phases** — Egg → Hatchling → Junior → Adult → Elder → Mythic
-- 🏆 **18 achievements** — 10 hook-driven + 8 OTel-gated (tokens, lines, cost, cache, PRs)
+- 🏆 **46 achievements** — bronze/silver/gold/platinum medal tiers across 13 families + a 6-step hatch phase ladder
 - 🐣 **5 deterministic species** — Pixel, Glitch, Daemon, Spark, Blob
 - ✨ **5 rarities + shiny** — same odds inspired by classic RPGs
 - 🪝 **5 official Claude Code hooks** — zero polling, sub-50ms updates
@@ -71,9 +71,9 @@ Code in Claude Code — hooks fire automatically, your pet evolves.
 | `petforge watch` | Live mode: continuous animation + auto-refresh of XP / level / counters every 500ms (Ctrl+C / q to exit) |
 | `petforge init [--otel \| --no-otel]` | Configure Claude Code hooks (and optionally OTel env vars) |
 | `petforge doctor` | Health check: hooks installed, state valid, OTel reachable, Buddy status |
-| `petforge serve [--port=N] [--lan] [--token=XXX]` | HTTP + SSE server with mobile-friendly web view |
+| `petforge serve [--port=N] [--lan] [--host=IP] [--token=XXX]` | HTTP + SSE server with mobile-friendly web view |
 | `petforge collect [--port=N] [--forward=URL]` | OTLP/HTTP/JSON collector for Claude Code metrics (strict 127.0.0.1) |
-| **`petforge up [--lan] [--port=N] [--collect-port=N] [--token=XXX] [--forward=URL]`** | **Recommended.** Starts collect + serve in a single process, single Ctrl+C kills both |
+| **`petforge up [--lan] [--host=IP] [--port=N] [--collect-port=N] [--token=XXX] [--forward=URL]`** | **Recommended.** Starts collect + serve in a single process, single Ctrl+C kills both |
 | `petforge buddy [on\|off\|auto]` | Toggle Claude Buddy visual integration |
 | `petforge buddy import [--from=FILE] [--clear]` | Pin a Buddy ASCII as your pet's visual (stdin or file) |
 
@@ -175,7 +175,7 @@ Hit XP thresholds → level up → unlock the next evolution phase. Achievements
 | 🐉 **Elder** | 60–99 | 100 000 → 1 000 000 | Sage, shimmer overlay |
 | 🌟 **Mythic** | 100 | 1 000 000+ | Apotheosis: crown glyph + pulsation |
 
-The first achievement — **Hatch** — fires when your pet reaches level 5 and the egg cracks open. Level 100 unlocks **Centurion** (+5 000 XP). Most users hit Junior in a couple of weeks of regular use; Mythic is a multi-month milestone.
+The hatch phase ladder fires one milestone per phase boundary: `hatch_egg` at the start, `hatch_hatchling` at level 5, `hatch_junior` at level 12, `hatch_adult` at level 30, `hatch_elder` at level 60, and `hatch_mythic` at level 100 (+25K XP — the mythic milestone subsumes the old Centurion). Most users hit Junior in a couple of weeks of regular use; Mythic is a multi-month milestone.
 
 ---
 
@@ -197,35 +197,27 @@ Each pet ships with 5 base stats (FOCUS, GRIT, FLOW, CRAFT, SPARK) derived from 
 
 ---
 
-## Achievements (18)
+## Achievements
 
-### Hook-driven (always available)
+**46 achievements** organized as:
 
-| ID | Name | Trigger | XP |
-|---|---|---|---|
-| `hatch` | 🥚 Hatch | Reach level 5 | +50 |
-| `first_tool` | 🔧 First Tool | First `PostToolUse` | +10 |
-| `marathon` | 🏃 Marathon | Single session > 4h | +100 |
-| `night_owl` | 🦉 Night Owl | Activity 02:00–05:00 local | +50 |
-| `streak_3d` | 📅 Streak 3 Days | 3 consecutive coding days | +200 |
-| `streak_7d` | 📅 Streak 7 Days | 7 consecutive coding days | +500 |
-| `polyglot` | 🌍 Polyglot | 5+ distinct file extensions in a session | +200 |
-| `refactor_master` | ♻️ Refactor Master | 50 `Edit` / `MultiEdit` in a session | +300 |
-| `tool_whisperer` | ⚡ Tool Whisperer | 1 000 tool uses cumulative | +500 |
-| `centurion` | 💯 Centurion | Reach level 100 | +5 000 |
+- **Hatch phase ladder** (6 milestones, no medal): egg / hatchling / junior /
+  adult / elder / mythic — fires when your pet enters each phase.
+- **13 medal families**, each with bronze (1K XP), silver (3K), gold (10K)
+  tiers (streak adds a platinum at 30K):
+  - **Streak** (3d / 7d / 30d / 100d), **Tool** (5K / 25K / 100K),
+    **Marathon** (4h / 12h / 24h), **Night** (200 / 1K / 5K events),
+    **Polyglot** (5 / 8 / 12 ext per session),
+    **Refactor** (100 / 250 / 500 tools per session)
+  - OTel-gated (require `petforge collect`):
+    **Code lines** (10K / 50K / 200K), **Tokens** (1M / 10M / 100M),
+    **Cache** (100K / 1M / 10M with hit-rate ladder),
+    **Frugal** (100p<$1 / 500p<$5 / 2Kp<$20),
+    **Big spender** ($100 / $500 / $2K),
+    **PR** (50 / 200 / 500), **Picky** (50 / 250 / 1K rejected edits)
 
-### OTel-gated (require `petforge collect`)
-
-| ID | Name | Trigger | XP |
-|---|---|---|---|
-| `code_architect` | 🏗️ Code Architect | 10 000 lines added | +500 |
-| `code_titan` | 🗿 Code Titan | 100 000 lines added | +5 000 |
-| `token_whisperer_v2` | ⚡ Token Whisperer | 1 M tokens consumed | +1 000 |
-| `cache_lord` | 💾 Cache Lord | ≥ 80 % cache hit ratio @ 100K+ tokens | +750 |
-| `frugal_coder` | 💰 Frugal Coder | 100 prompts under $1 cumulative | +500 |
-| `big_spender` | 💸 Big Spender | $100 cumulative spend | +500 |
-| `pr_machine` | 🚀 PR Machine | 50 PRs opened | +1 500 |
-| `picky_reviewer` | ✋ Picky Reviewer | 50 edits rejected | +500 |
+Hatch ladder XP: 50 (egg) / 500 (hatchling) / 2K (junior) / 5K (adult) /
+10K (elder) / 25K (mythic).
 
 ---
 
@@ -291,6 +283,8 @@ petforge serve --lan
 Open the LAN URL on your phone, add to home screen for an "app" feel. The web view streams live: every hook event your machine receives is reflected on your phone within ~50ms via Server-Sent Events (auto-reconnects on disconnect).
 
 By default the server binds to `127.0.0.1` (loopback only). `--lan` exposes it on `0.0.0.0`. For shared networks, `--token=XXX` requires a shared secret in the URL (`?token=XXX`) or via a `Bearer` header.
+
+If the auto-detected LAN IP is wrong (PetForge picks the first non-loopback IPv4, which on Windows can be a Hyper-V / WSL / Docker / VirtualBox vEthernet adapter, or a Tailscale / VPN tunnel), pass `--host=IP` to override only the displayed URL. The bind stays on `0.0.0.0`, so the server is still reachable on every interface — `--host` just decides which one PetForge prints. Examples: `--host=192.168.1.42` (Wi-Fi), `--host=100.x.y.z` (Tailscale), `--host=mybox.local` (mDNS).
 
 The server is **read-only** — it streams state and never mutates it.
 

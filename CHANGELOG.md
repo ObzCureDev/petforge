@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.2.0 — 2026-05-02
+
+**Achievement restructure** — 24 → 46 achievements with bronze/silver/gold medal tiers.
+
+- Hatch becomes a 6-milestone phase ladder (egg / hatchling / junior / adult /
+  elder / mythic), unlocked by the corresponding level boundary. Centurion is
+  folded into hatch_mythic.
+- 13 medal-tagged families (streak / tool / marathon / night / polyglot /
+  refactor / code / token / cache / frugal / big_spender / pr / picky) each
+  expose bronze/silver/gold tiers; streak adds a platinum tier at 100 days.
+- New `medal` field on `AchievementDef`. UI renders 🥉🥈🥇💎 emoji prefix
+  in both the web view and the Ink TUI; the web view tints the progress
+  bar / mark by medal color.
+- V3.1 -> V3.2 ID rename runs transparently in `readState`. `first_tool`
+  is dropped (tool family covers it); existing XP is preserved verbatim.
+- Bumps the previously-too-easy thresholds (tool 1K -> 5K, night 50 -> 200,
+  marathon 1h -> 4h) and adds tiers above (tool 100K, night 5K, marathon 24h).
+- Registry-hygiene tests assert the 46-entry total + per-medal XP scale.
+
 ## 2.1.0 — 2026-05-01
 
 ### Features
