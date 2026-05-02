@@ -288,6 +288,75 @@ const CSS = `
   .ach-progress-label { margin: 0.2rem 0 0; color: #8b949e; font-size: 0.8rem; }
   .status { text-align: center; color: #6e7681; font-size: 0.75rem; }
 
+  /* V3.4 - category groups */
+  .cat-details { margin: 0.5rem 0; }
+  .cat-summary {
+    display: grid;
+    grid-template-columns: 1em 1fr auto;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    padding: 0.4rem 0.5rem;
+    background: #161b22;
+    border-radius: 4px;
+    user-select: none;
+    align-items: center;
+  }
+  .cat-summary::-webkit-details-marker { display: none; }
+  .cat-summary::marker { content: ''; }
+  .cat-summary .caret { color: #6e7681; font-size: 0.8rem; }
+  .cat-summary .cat-name {
+    color: #e6edf3;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+  }
+  .cat-summary .cat-counts {
+    color: #8b949e;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .cat-body { padding: 0.25rem 0.5rem 0.25rem 1.5rem; }
+
+  /* V3.4 - achievement status cell (replaces V3.2 .ach-mark) */
+  .ach-status {
+    width: 1.2em;
+    flex-shrink: 0;
+    font-size: 0.95rem;
+    color: #8b949e;
+  }
+  .ach[data-status="completed"] .ach-status { color: #3fb950; }
+  .ach[data-status="in-progress"] .ach-status { color: #58a6ff; }
+  .ach[data-status="locked"] .ach-status { color: #6e7681; }
+
+  /* V3.4 - hide pct for completed (status symbol carries the info) */
+  .ach[data-status="completed"] .ach-pct { visibility: hidden; }
+
+  /* V3.4 - mini bar (in-progress only) */
+  .ach-mini-bar {
+    margin: 0.2rem 0 0;
+    background: #21262d;
+    height: 0.25rem;
+    border-radius: 2px;
+    overflow: hidden;
+    display: none;
+    pointer-events: none;
+  }
+  .ach[data-status="in-progress"] .ach-mini-bar { display: block; }
+  .ach-mini-bar-fill {
+    background: #58a6ff;
+    height: 100%;
+    transition: width 0.4s;
+  }
+  .ach[data-status="in-progress"].medal-bronze .ach-mini-bar-fill { background: #cd7f32; }
+  .ach[data-status="in-progress"].medal-silver .ach-mini-bar-fill { background: #c9d1d9; }
+  .ach[data-status="in-progress"].medal-gold .ach-mini-bar-fill { background: #ffd700; }
+  .ach[data-status="in-progress"].medal-platinum .ach-mini-bar-fill { background: #79c0ff; }
+
+  /* V3.4 - goals card spacing */
+  .goals-card .ach-summary { padding: 0.4rem 0.25rem; }
+
   /* rarity glows on the pet ASCII (text-shadow only, body color unchanged) */
   .rarity-uncommon  { text-shadow: 0 0 6px rgba(63,185,80,0.6); }
   .rarity-rare      { text-shadow: 0 0 8px rgba(88,166,255,0.7); }
