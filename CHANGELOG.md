@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.3.0 - 2026-05-02
+
+**Visual restructure** - web view re-laid in 4 distinct cards.
+
+- PET card: ASCII pet + display name + rarity/phase/level sub-line + XP bar +
+  3 derived rows (Mood, Trait, Next evolution).
+- CURRENT RUN card: split into RUN line (sessions / streak / prompts / tools)
+  and DEV line (OTel-derived: lines / tokens / cost / cache hit %). DEV row
+  hides cleanly when no OTel data is available.
+- STATS card: 3-column grid (name | value | bar) instead of name | bar | value.
+- ACHIEVEMENTS card: existing 46-entry list wrapped in the new card style;
+  internal contents unchanged in V3.3.
+- Mood derivation: Night Owl > Coding > Resting > Focused (priority order).
+  Trait derivation: top stat + " Aura", canonical-order tie-break (NOT
+  alphabetical). Next evolution: percent toward next phase boundary,
+  clamped to [0, 100], "MAX - ascended" at level 100.
+- No state schema bump, no migration. Pure UI overhaul on top of V3.2.
+
+Deferred to V3.4: collapsible achievement categories, Next Goals filter,
+status symbols (completed / in-progress / locked), per-achievement mini bars.
+
 ## 3.2.0 — 2026-05-02
 
 **Achievement restructure** — 24 → 46 achievements with bronze/silver/gold medal tiers.
