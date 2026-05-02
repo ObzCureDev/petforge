@@ -71,22 +71,31 @@ export function renderPage(state: State | null): string {
 </head>
 <body>
 <main id="app">
-  <pre id="pet" class="pet"></pre>
-  <p class="header"><span id="species"></span> &middot; <span id="rarity"></span> &middot; <span id="phase"></span><span id="shiny" hidden> &#x2728;</span></p>
-  <div class="xpbar">
-    <div class="xpbar-track"><div id="xp-fill" class="xpbar-fill"></div></div>
-    <p class="xpbar-label" id="xp-label"></p>
-  </div>
-  <section>
-    <h2>STATS</h2>
+  <section class="card pet-card">
+    <pre id="pet" class="pet"></pre>
+    <p class="header"><span id="species"></span></p>
+    <p class="subheader"><span id="rarity"></span> &middot; <span id="phase"></span> &middot; LVL <span id="level"></span><span id="shiny" hidden> &#x2728;</span></p>
+    <div class="xpbar">
+      <div class="xpbar-track"><div id="xp-fill" class="xpbar-fill"></div></div>
+      <p class="xpbar-label" id="xp-label"></p>
+    </div>
+    <div class="kv-row"><span class="kv-label">Mood:</span><span class="kv-value" id="mood"></span></div>
+    <div class="kv-row"><span class="kv-label">Trait:</span><span class="kv-value" id="trait"></span></div>
+    <div class="kv-row"><span class="kv-label">Next evolution:</span><span class="kv-value" id="next-evo"></span></div>
+  </section>
+  <section class="card run-card">
+    <p class="card-label">Current Run</p>
+    <p class="run-line"><span class="run-prefix">RUN</span><span id="activity" class="activity"></span></p>
+    <p class="run-line" id="otel-row"><span class="run-prefix">DEV</span><span id="otel-activity" class="activity"></span></p>
+  </section>
+  <section class="card stats-card">
+    <p class="card-label">Stats</p>
     <div id="stats"></div>
   </section>
-  <section>
-    <h2>ACHIEVEMENTS</h2>
+  <section class="card achievements-card">
+    <p class="card-label">Achievements</p>
     <div id="achievements"></div>
   </section>
-  <p id="activity" class="activity"></p>
-  <p id="otel-activity" class="activity" hidden></p>
   <p id="status" class="status"></p>
 </main>
 <script id="initial-state" type="application/json">${initialState}</script>
@@ -113,8 +122,8 @@ const CSS = `
     font-size: 1.1rem;
     line-height: 1.1;
     white-space: pre;
+    text-align: center;
     margin: 1rem auto;
-    width: fit-content;
     min-height: 8em;
   }
   .header { text-align: center; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
@@ -483,7 +492,15 @@ const CLIENT_JS = `
       return;
     }
     var fr = derived.frames;
-    if (fr.length > 0) pet.textContent = fr[frameIdx % fr.length];
+    if (fr.length > 0) {
+      // Strip per-line leading/trailing whitespace so CSS text-align: center
+      // can center each line individually. NB: this code lives inside a TS
+      // template literal — backslashes must be DOUBLE-escaped so the browser
+      // sees a real \\n separator and a real \\s regex class.
+      var raw = fr[frameIdx % fr.length];
+      var trimmed = raw.split("\\n").map(function (l) { return l.replace(/^\\s+|\\s+$/g, ""); }).join("\\n");
+      pet.textContent = trimmed;
+    }
     pet.className = derived.className;
   }
 
