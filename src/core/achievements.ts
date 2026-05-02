@@ -62,150 +62,348 @@ export interface AchievementDef {
 }
 
 export const ACHIEVEMENTS: Readonly<Record<AchievementId, AchievementDef>> = {
-  hatch: {
-    id: "hatch",
-    name: "Hatch",
+  // Hatch phase ladder (no medal - phase-based)
+  hatch_egg: {
+    id: "hatch_egg",
+    name: "Hatch · Egg",
+    xp: 50,
+    description: "Spawn your pet - your first hook fires (level 1).",
+  },
+  hatch_hatchling: {
+    id: "hatch_hatchling",
+    name: "Hatch · Hatchling",
     xp: 500,
-    description: "Reach level 5 — your pet hatches out of the egg phase.",
+    description: "Reach level 5 - your pet hatches out of the egg phase.",
   },
-  first_tool: {
-    id: "first_tool",
-    name: "First Tool",
-    xp: 500,
-    description: "Use any tool through Claude Code for the first time.",
+  hatch_junior: {
+    id: "hatch_junior",
+    name: "Hatch · Junior",
+    xp: 2_000,
+    description: "Reach level 20 - your pet matures into junior.",
   },
-  marathon: {
-    id: "marathon",
-    name: "Marathon",
-    xp: 1_000,
-    description: "Stay in a single Claude Code session for over 4 hours.",
+  hatch_adult: {
+    id: "hatch_adult",
+    name: "Hatch · Adult",
+    xp: 5_000,
+    description: "Reach level 50 - your pet reaches adult.",
   },
-  ultra_marathon: {
-    id: "ultra_marathon",
-    name: "Ultra Marathon",
-    xp: 3_000,
-    description: "Stay in a single Claude Code session for over 12 hours.",
+  hatch_elder: {
+    id: "hatch_elder",
+    name: "Hatch · Elder",
+    xp: 10_000,
+    description: "Reach level 80 - your pet ages into elder.",
   },
-  night_owl: {
-    id: "night_owl",
-    name: "Night Owl",
-    xp: 1_500,
-    description: "Trigger 200 events between 10pm and 2am local time.",
+  hatch_mythic: {
+    id: "hatch_mythic",
+    name: "Hatch · Mythic",
+    xp: 25_000,
+    description: "Reach level 100 - your pet ascends to mythic.",
   },
-  nocturnal: {
-    id: "nocturnal",
-    name: "Nocturnal",
-    xp: 4_000,
-    description: "Trigger 1,000 events between 10pm and 2am local time.",
-  },
+
+  // Streak (4 tiers)
   streak_3d: {
     id: "streak_3d",
-    name: "Streak 3 Days",
+    name: "Streak · 3 Days",
     xp: 1_000,
     description: "Use Claude Code on 3 consecutive days.",
+    medal: "bronze",
   },
   streak_7d: {
     id: "streak_7d",
-    name: "Streak 7 Days",
-    xp: 2_500,
+    name: "Streak · 7 Days",
+    xp: 3_000,
     description: "Use Claude Code on 7 consecutive days.",
+    medal: "silver",
   },
   streak_30d: {
     id: "streak_30d",
-    name: "Streak 30 Days",
-    xp: 7_500,
+    name: "Streak · 30 Days",
+    xp: 10_000,
     description: "Use Claude Code on 30 consecutive days.",
+    medal: "gold",
   },
   streak_100d: {
     id: "streak_100d",
-    name: "Streak 100 Days",
-    xp: 25_000,
+    name: "Streak · 100 Days",
+    xp: 30_000,
     description: "Use Claude Code on 100 consecutive days.",
+    medal: "platinum",
   },
-  polyglot: {
-    id: "polyglot",
-    name: "Polyglot",
-    xp: 1_500,
-    description: "Edit 5 different file extensions in a single session.",
-  },
-  refactor_master: {
-    id: "refactor_master",
-    name: "Refactor Master",
-    xp: 2_000,
-    description: "Use 100+ tools in a single session.",
-  },
-  tool_whisperer: {
-    id: "tool_whisperer",
-    name: "Tool Whisperer",
-    xp: 3_000,
+
+  // Tool count
+  tool_5k: {
+    id: "tool_5k",
+    name: "Tool · 5K",
+    xp: 1_000,
     description: "Use 5,000 tools total across all sessions.",
+    medal: "bronze",
   },
-  tool_master: {
-    id: "tool_master",
-    name: "Tool Master",
-    xp: 7_500,
-    description: "Use 25,000 tools total across all sessions.",
-  },
-  tool_legend: {
-    id: "tool_legend",
-    name: "Tool Legend",
-    xp: 20_000,
-    description: "Use 100,000 tools total across all sessions — legendary.",
-  },
-  centurion: {
-    id: "centurion",
-    name: "Centurion",
-    xp: 5_000,
-    description: "Reach level 100.",
-  },
-  // V2.0 (OTel-gated)
-  code_architect: {
-    id: "code_architect",
-    name: "Code Architect",
+  tool_25k: {
+    id: "tool_25k",
+    name: "Tool · 25K",
     xp: 3_000,
-    description: "Add 10,000 lines of code (OTel collector required).",
+    description: "Use 25,000 tools total - true mastery.",
+    medal: "silver",
   },
-  code_titan: {
-    id: "code_titan",
-    name: "Code Titan",
+  tool_100k: {
+    id: "tool_100k",
+    name: "Tool · 100K",
     xp: 10_000,
-    description: "Add 100,000 lines of code (OTel collector required).",
+    description: "Use 100,000 tools total - legendary tool wielder.",
+    medal: "gold",
   },
-  token_whisperer_v2: {
-    id: "token_whisperer_v2",
-    name: "Token Whisperer",
+
+  // Marathon (single-session duration)
+  marathon_4h: {
+    id: "marathon_4h",
+    name: "Marathon · 4h",
+    xp: 1_000,
+    description: "Stay in a single session for over 4 hours.",
+    medal: "bronze",
+  },
+  marathon_12h: {
+    id: "marathon_12h",
+    name: "Marathon · 12h",
     xp: 3_000,
+    description: "Stay in a single session for over 12 hours.",
+    medal: "silver",
+  },
+  marathon_24h: {
+    id: "marathon_24h",
+    name: "Marathon · 24h",
+    xp: 10_000,
+    description: "Stay in a single session for over 24 hours straight.",
+    medal: "gold",
+  },
+
+  // Night events (10pm - 2am)
+  night_200: {
+    id: "night_200",
+    name: "Night · 200",
+    xp: 1_000,
+    description: "Trigger 200 events between 10pm and 2am local time.",
+    medal: "bronze",
+  },
+  night_1k: {
+    id: "night_1k",
+    name: "Night · 1K",
+    xp: 3_000,
+    description: "Trigger 1,000 events between 10pm and 2am local time.",
+    medal: "silver",
+  },
+  night_5k: {
+    id: "night_5k",
+    name: "Night · 5K",
+    xp: 10_000,
+    description: "Trigger 5,000 events between 10pm and 2am local time.",
+    medal: "gold",
+  },
+
+  // Polyglot (distinct extensions per session)
+  polyglot_5: {
+    id: "polyglot_5",
+    name: "Polyglot · 5",
+    xp: 1_000,
+    description: "Edit 5 different file extensions in a single session.",
+    medal: "bronze",
+  },
+  polyglot_8: {
+    id: "polyglot_8",
+    name: "Polyglot · 8",
+    xp: 3_000,
+    description: "Edit 8 different file extensions in a single session.",
+    medal: "silver",
+  },
+  polyglot_12: {
+    id: "polyglot_12",
+    name: "Polyglot · 12",
+    xp: 10_000,
+    description: "Edit 12 different file extensions in a single session.",
+    medal: "gold",
+  },
+
+  // Refactor (tools per session)
+  refactor_100: {
+    id: "refactor_100",
+    name: "Refactor · 100",
+    xp: 1_000,
+    description: "Use 100+ tools in a single session.",
+    medal: "bronze",
+  },
+  refactor_250: {
+    id: "refactor_250",
+    name: "Refactor · 250",
+    xp: 3_000,
+    description: "Use 250+ tools in a single session.",
+    medal: "silver",
+  },
+  refactor_500: {
+    id: "refactor_500",
+    name: "Refactor · 500",
+    xp: 10_000,
+    description: "Use 500+ tools in a single session.",
+    medal: "gold",
+  },
+
+  // Code lines (OTel)
+  code_10k: {
+    id: "code_10k",
+    name: "Code · 10K lines",
+    xp: 1_000,
+    description: "Add 10,000 lines of code (OTel collector required).",
+    medal: "bronze",
+  },
+  code_50k: {
+    id: "code_50k",
+    name: "Code · 50K lines",
+    xp: 3_000,
+    description: "Add 50,000 lines of code (OTel collector required).",
+    medal: "silver",
+  },
+  code_200k: {
+    id: "code_200k",
+    name: "Code · 200K lines",
+    xp: 10_000,
+    description: "Add 200,000 lines of code (OTel collector required).",
+    medal: "gold",
+  },
+
+  // Token volume (OTel)
+  token_1m: {
+    id: "token_1m",
+    name: "Token · 1M",
+    xp: 1_000,
     description: "Process 1,000,000 tokens (input + output combined).",
+    medal: "bronze",
   },
-  cache_lord: {
-    id: "cache_lord",
-    name: "Cache Lord",
-    xp: 2_500,
-    description: "Reach >=80% prompt-cache hit rate over 100,000+ tokens.",
-  },
-  frugal_coder: {
-    id: "frugal_coder",
-    name: "Frugal Coder",
-    xp: 1_500,
-    description: "Send 100+ prompts while keeping total spend under $1.",
-  },
-  big_spender: {
-    id: "big_spender",
-    name: "Big Spender",
-    xp: 2_000,
-    description: "Spend $100+ on Claude API across all sessions.",
-  },
-  pr_machine: {
-    id: "pr_machine",
-    name: "PR Machine",
+  token_10m: {
+    id: "token_10m",
+    name: "Token · 10M",
     xp: 3_000,
-    description: "Create 50+ pull requests through Claude Code.",
+    description: "Process 10,000,000 tokens (input + output combined).",
+    medal: "silver",
   },
-  picky_reviewer: {
-    id: "picky_reviewer",
-    name: "Picky Reviewer",
-    xp: 1_500,
+  token_100m: {
+    id: "token_100m",
+    name: "Token · 100M",
+    xp: 10_000,
+    description: "Process 100,000,000 tokens (input + output combined).",
+    medal: "gold",
+  },
+
+  // Cache hit (OTel) - volume + ratio
+  cache_100k: {
+    id: "cache_100k",
+    name: "Cache · 100K",
+    xp: 1_000,
+    description: "Reach >=80% prompt-cache hit rate over 100,000+ tokens.",
+    medal: "bronze",
+  },
+  cache_1m: {
+    id: "cache_1m",
+    name: "Cache · 1M",
+    xp: 3_000,
+    description: "Reach >=80% prompt-cache hit rate over 1,000,000+ tokens.",
+    medal: "silver",
+  },
+  cache_10m: {
+    id: "cache_10m",
+    name: "Cache · 10M",
+    xp: 10_000,
+    description: "Reach >=90% prompt-cache hit rate over 10,000,000+ tokens.",
+    medal: "gold",
+  },
+
+  // Frugal (OTel)
+  frugal_100p: {
+    id: "frugal_100p",
+    name: "Frugal · 100 prompts",
+    xp: 1_000,
+    description: "Send 100+ prompts while keeping total spend under $1.",
+    medal: "bronze",
+  },
+  frugal_500p: {
+    id: "frugal_500p",
+    name: "Frugal · 500 prompts",
+    xp: 3_000,
+    description: "Send 500+ prompts while keeping total spend under $5.",
+    medal: "silver",
+  },
+  frugal_2kp: {
+    id: "frugal_2kp",
+    name: "Frugal · 2K prompts",
+    xp: 10_000,
+    description: "Send 2,000+ prompts while keeping total spend under $20.",
+    medal: "gold",
+  },
+
+  // Big spender (OTel) - IDs are dollar amounts
+  big_spender_100: {
+    id: "big_spender_100",
+    name: "Big Spender · $100",
+    xp: 1_000,
+    description: "Spend $100+ on Claude API across all sessions.",
+    medal: "bronze",
+  },
+  big_spender_500: {
+    id: "big_spender_500",
+    name: "Big Spender · $500",
+    xp: 3_000,
+    description: "Spend $500+ on Claude API across all sessions.",
+    medal: "silver",
+  },
+  big_spender_2k: {
+    id: "big_spender_2k",
+    name: "Big Spender · $2K",
+    xp: 10_000,
+    description: "Spend $2,000+ on Claude API across all sessions.",
+    medal: "gold",
+  },
+
+  // PR machine (OTel)
+  pr_50: {
+    id: "pr_50",
+    name: "PR · 50",
+    xp: 1_000,
+    description: "Create 50+ pull requests through Claude Code.",
+    medal: "bronze",
+  },
+  pr_200: {
+    id: "pr_200",
+    name: "PR · 200",
+    xp: 3_000,
+    description: "Create 200+ pull requests through Claude Code.",
+    medal: "silver",
+  },
+  pr_500: {
+    id: "pr_500",
+    name: "PR · 500",
+    xp: 10_000,
+    description: "Create 500+ pull requests through Claude Code.",
+    medal: "gold",
+  },
+
+  // Picky reviewer (OTel)
+  picky_50: {
+    id: "picky_50",
+    name: "Picky · 50",
+    xp: 1_000,
     description: "Reject 50+ proposed edits during review.",
+    medal: "bronze",
+  },
+  picky_250: {
+    id: "picky_250",
+    name: "Picky · 250",
+    xp: 3_000,
+    description: "Reject 250+ proposed edits during review.",
+    medal: "silver",
+  },
+  picky_1k: {
+    id: "picky_1k",
+    name: "Picky · 1K",
+    xp: 10_000,
+    description: "Reject 1,000+ proposed edits during review.",
+    medal: "gold",
   },
 } as const;
 
