@@ -22,7 +22,6 @@ import {
   checkAchievementsForEvent,
   type HookEvent,
   isNightOwlHour,
-  unlockAchievement,
   updateStreak,
 } from "../core/achievements.js";
 import { generatePet } from "../core/pet-engine.js";
@@ -265,17 +264,6 @@ export function applyHookEvent(
   }
   state.progress.level = postAchievementLevel;
   state.progress.phase = phaseForLevel(postAchievementLevel);
-
-  // Defensive centurion check for events `checkAchievementsForEvent` does
-  // not cover (prompt / post_tool_use / session_start). The function
-  // already handles stop & session_end.
-  if (state.progress.level >= 100 && !state.achievements.unlocked.includes("centurion")) {
-    unlockAchievement(state, "centurion");
-    // Centurion's XP can itself be level-relevant; recompute one last time.
-    const finalLevel = levelForXp(state.progress.xp);
-    state.progress.level = finalLevel;
-    state.progress.phase = phaseForLevel(finalLevel);
-  }
 
   // 4) session_end cleanup
   if (event === "session_end") {
