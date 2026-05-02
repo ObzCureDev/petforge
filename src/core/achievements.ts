@@ -458,7 +458,19 @@ export function checkAchievementsForEvent(
 
   const session = state.counters.activeSessions[input.sessionId];
 
-  // Shared helpers used across multiple events.
+  // Phase ladder - runs on level-changing events. Triggered by the level
+  // boundary, not by the phase string, so a hook event that crosses
+  // multiple phases at once unlocks every passed milestone in one call.
+  const checkPhases = (): void => {
+    const lvl = state.progress.level;
+    tryUnlock("hatch_egg", lvl >= 1);
+    tryUnlock("hatch_hatchling", lvl >= 5);
+    tryUnlock("hatch_junior", lvl >= 20);
+    tryUnlock("hatch_adult", lvl >= 50);
+    tryUnlock("hatch_elder", lvl >= 80);
+    tryUnlock("hatch_mythic", lvl >= 100);
+  };
+
   const checkStreaks = (): void => {
     const d = state.counters.streakDays;
     tryUnlock("streak_3d", d >= 3);
@@ -466,69 +478,81 @@ export function checkAchievementsForEvent(
     tryUnlock("streak_30d", d >= 30);
     tryUnlock("streak_100d", d >= 100);
   };
-  const checkNight = (): void => {
-    const n = state.counters.nightOwlEvents;
-    tryUnlock("night_owl", n >= 200);
-    tryUnlock("nocturnal", n >= 1_000);
-  };
+
   const checkTools = (): void => {
     const t = state.counters.toolUseTotal;
-    tryUnlock("tool_whisperer", t >= 5_000);
-    tryUnlock("tool_master", t >= 25_000);
-    tryUnlock("tool_legend", t >= 100_000);
+    tryUnlock("tool_5k", t >= 5_000);
+    tryUnlock("tool_25k", t >= 25_000);
+    tryUnlock("tool_100k", t >= 100_000);
   };
-  // Marathon ladder — uses the active session's duration. Triggers from any
-  // event so a long-running session unlocks DURING the session, not only on
-  // close (Claude Code rarely fires session_end in normal usage).
+
+  const checkNight = (): void => {
+    const n = state.counters.nightOwlEvents;
+    tryUnlock("night_200", n >= 200);
+    tryUnlock("night_1k", n >= 1_000);
+    tryUnlock("night_5k", n >= 5_000);
+  };
+
+  // Marathon - uses the active session's duration. Triggers from any
+  // event so a long-running session unlocks during the session, not only
+  // on close (Claude Code rarely fires session_end in normal usage).
   const checkMarathon = (): void => {
     if (!session) return;
     const duration = input.now - session.startTs;
-    tryUnlock("marathon", duration > 4 * 60 * 60 * 1000);
-    tryUnlock("ultra_marathon", duration > 12 * 60 * 60 * 1000);
+    tryUnlock("marathon_4h", duration > 4 * 60 * 60 * 1000);
+    tryUnlock("marathon_12h", duration > 12 * 60 * 60 * 1000);
+    tryUnlock("marathon_24h", duration > 24 * 60 * 60 * 1000);
+  };
+
+  const checkPolyglot = (): void => {
+    if (!session) return;
+    const ext = session.fileExtensions.length;
+    tryUnlock("polyglot_5", ext >= 5);
+    tryUnlock("polyglot_8", ext >= 8);
+    tryUnlock("polyglot_12", ext >= 12);
+  };
+
+  const checkRefactor = (): void => {
+    if (!session) return;
+    const t = session.toolUseCount;
+    tryUnlock("refactor_100", t >= 100);
+    tryUnlock("refactor_250", t >= 250);
+    tryUnlock("refactor_500", t >= 500);
   };
 
   switch (event) {
     case "prompt": {
-      tryUnlock("hatch", state.progress.level >= 5);
-      checkNight();
-      // streak counter is also incremented in the prompt hook (defensive
-      // catch-up when session_start did not fire — e.g. user resumed a
-      // pre-existing session across the day boundary).
+      checkPhases();
       checkStreaks();
+      checkNight();
       checkMarathon();
       break;
     }
     case "post_tool_use": {
-      tryUnlock("hatch", state.progress.level >= 5);
-      tryUnlock("first_tool", state.counters.toolUseTotal >= 1);
+      checkPhases();
       checkTools();
       checkNight();
       checkStreaks();
       checkMarathon();
-      if (session) {
-        tryUnlock("polyglot", session.fileExtensions.length >= 5);
-        tryUnlock("refactor_master", session.toolUseCount >= 100);
-      }
+      checkPolyglot();
+      checkRefactor();
       break;
     }
     case "stop": {
-      // Stop fires often (every Claude response completion), so it's a good
-      // additional gate for active-session-duration achievements.
-      tryUnlock("hatch", state.progress.level >= 5);
-      tryUnlock("centurion", state.progress.level >= 100);
+      checkPhases();
       checkMarathon();
       break;
     }
     case "session_start": {
+      checkPhases();
       checkStreaks();
       break;
     }
     case "session_end": {
-      // Marathon ladder: caller must NOT delete activeSessions[sessionId]
-      // before calling this function — we need startTs to compute duration.
+      // session is still present here - caller deletes activeSessions[id]
+      // AFTER this function returns so we can read startTs for marathon.
       checkMarathon();
-      tryUnlock("hatch", state.progress.level >= 5);
-      tryUnlock("centurion", state.progress.level >= 100);
+      checkPhases();
       break;
     }
   }
