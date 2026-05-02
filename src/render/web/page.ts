@@ -475,6 +475,52 @@ const CLIENT_JS = `
     return { nextPhase: next.phase, percent: percent, label: next.phase + " - " + percent + "%" };
   }
 
+  var CATEGORY_ORDER = ["Evolution", "Streak", "Activity", "Time", "Coding", "Economy", "Collaboration"];
+
+  function categorize(id) {
+    if (id.indexOf("hatch_") === 0) return "Evolution";
+    if (id.indexOf("streak_") === 0) return "Streak";
+    if (id.indexOf("tool_") === 0 || id.indexOf("refactor_") === 0 || id.indexOf("polyglot_") === 0) return "Activity";
+    if (id.indexOf("marathon_") === 0 || id.indexOf("night_") === 0) return "Time";
+    if (id.indexOf("code_") === 0 || id.indexOf("token_") === 0 || id.indexOf("cache_") === 0) return "Coding";
+    if (id.indexOf("frugal_") === 0 || id.indexOf("big_spender_") === 0) return "Economy";
+    if (id.indexOf("pr_") === 0 || id.indexOf("picky_") === 0) return "Collaboration";
+    return "Other";
+  }
+
+  function getStatus(id, state) {
+    if (state.achievements.unlocked.indexOf(id) !== -1) return "completed";
+    var p = achievementProgress(id, state);
+    if (p.target > 0 && p.current > 0 && p.current < p.target) return "in-progress";
+    return "locked";
+  }
+
+  var STATUS_SYMBOL = { "completed": "✅", "in-progress": "◐", "locked": "○" };
+
+  function ratioOf(id, state) {
+    var p = achievementProgress(id, state);
+    return p.target > 0 ? p.current / p.target : 0;
+  }
+
+  function nextGoals(state) {
+    var inProgress = ACH_IDS
+      .filter(function (id) { return getStatus(id, state) === "in-progress"; })
+      .map(function (id) { return { id: id, ratio: ratioOf(id, state) }; });
+    var byRatioDesc = function (a, b) { return b.ratio - a.ratio; };
+    var preferred = inProgress.filter(function (a) { return a.ratio >= 0.5; }).sort(byRatioDesc);
+    var fallback = inProgress.filter(function (a) { return a.ratio < 0.5; }).sort(byRatioDesc);
+    return preferred.concat(fallback).slice(0, 5);
+  }
+
+  function nearCompletion(state) {
+    return ACH_IDS
+      .filter(function (id) { return getStatus(id, state) === "in-progress"; })
+      .map(function (id) { return { id: id, ratio: ratioOf(id, state) }; })
+      .filter(function (a) { return a.ratio >= 0.7; })
+      .sort(function (a, b) { return b.ratio - a.ratio; })
+      .slice(0, 5);
+  }
+
   function xpForLevel(level) {
     if (level <= 1) return 0;
     if (level >= 100) return 1000000;
@@ -777,12 +823,10 @@ const CLIENT_JS = `
     }
     byId("stats").innerHTML = statsHtml;
 
-    var achHtml = "";
-    for (var j = 0; j < ACH_IDS.length; j++) {
-      var id = ACH_IDS[j];
+    function renderAchievementRow(id, state) {
       var def = ACH[id];
-      var unlocked = s.achievements.unlocked.indexOf(id) !== -1;
-      var prog = achievementProgress(id, s);
+      var status = getStatus(id, state);
+      var prog = achievementProgress(id, state);
       var ratio = prog.target > 0 ? Math.min(1, prog.current / prog.target) : 0;
       var pctStr = Math.round(ratio * 100) + "%";
       var progressLabel = prog.current.toLocaleString() + " / " + prog.target.toLocaleString();
@@ -792,20 +836,87 @@ const CLIENT_JS = `
         : medal === "gold" ? "🥇"
         : medal === "platinum" ? "💎"
         : "";
-      var classes = "ach" + (unlocked ? " unlocked" : "") + (medal ? " medal-" + medal : "");
-      achHtml += '<details class="' + classes + '">';
-      achHtml += '<summary class="ach-summary">';
-      achHtml += '<span class="ach-mark">' + (unlocked ? "✓" : "·") + '</span> ';
-      if (medalEmoji) achHtml += '<span class="ach-medal">' + medalEmoji + '</span> ';
-      achHtml += '<span class="ach-name">' + def.name + '</span>';
-      achHtml += '<span class="ach-pct">' + (unlocked ? "" : pctStr) + '</span>';
-      achHtml += '</summary>';
-      achHtml += '<div class="ach-detail">';
-      achHtml += '<p class="ach-desc">' + def.description + '</p>';
-      achHtml += '<div class="ach-bar-track"><div class="ach-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
-      achHtml += '<p class="ach-progress-label">' + progressLabel + (unlocked ? " · unlocked (+" + def.xp + " xp)" : "") + '</p>';
-      achHtml += '</div>';
-      achHtml += '</details>';
+      var classes = "ach " + status + (medal ? " medal-" + medal : "");
+      var symbol = STATUS_SYMBOL[status];
+
+      var html = '<details class="' + classes + '" data-status="' + status + '">';
+      html += '<summary class="ach-summary">';
+      html += '<span class="ach-status">' + symbol + '</span> ';
+      if (medalEmoji) html += '<span class="ach-medal">' + medalEmoji + '</span> ';
+      else html += '<span class="ach-medal" style="visibility:hidden">.</span> ';
+      html += '<span class="ach-name">' + def.name + '</span>';
+      html += '<span class="ach-pct">' + (status === "completed" ? "" : pctStr) + '</span>';
+      html += '<div class="ach-mini-bar"><div class="ach-mini-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
+      html += '</summary>';
+      html += '<div class="ach-detail">';
+      html += '<p class="ach-desc">' + def.description + '</p>';
+      html += '<div class="ach-bar-track"><div class="ach-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
+      html += '<p class="ach-progress-label">' + progressLabel + (status === "completed" ? " · unlocked (+" + def.xp + " xp)" : "") + '</p>';
+      html += '</div>';
+      html += '</details>';
+      return html;
+    }
+
+    function renderCategorySection(name, ids, state, isOpen, virtualCount) {
+      var unlocked = 0;
+      var anyInProgress = false;
+      for (var i = 0; i < ids.length; i++) {
+        var st = getStatus(ids[i], state);
+        if (st === "completed") unlocked++;
+        else if (st === "in-progress") anyInProgress = true;
+      }
+      var headSym = unlocked > 0 ? STATUS_SYMBOL["completed"]
+        : anyInProgress ? STATUS_SYMBOL["in-progress"]
+        : STATUS_SYMBOL["locked"];
+      var counts = virtualCount !== undefined
+        ? (headSym + " " + virtualCount)
+        : (headSym + " " + unlocked + "/" + ids.length);
+
+      var html = '<details class="cat-details"' + (isOpen ? ' open' : '') + '>';
+      html += '<summary class="cat-summary">';
+      html += '<span class="caret">' + (isOpen ? '▾' : '▸') + '</span>';
+      html += '<span class="cat-name">' + name + '</span>';
+      html += '<span class="cat-counts">' + counts + '</span>';
+      html += '</summary>';
+      html += '<div class="cat-body">';
+      for (var j = 0; j < ids.length; j++) html += renderAchievementRow(ids[j], state);
+      html += '</div>';
+      html += '</details>';
+      return html;
+    }
+
+    // 1. Next Goals card.
+    var ng = nextGoals(s);
+    var goalsCard = byId("goals-card");
+    if (ng.length > 0) {
+      var goalsHtml = "";
+      for (var gi = 0; gi < ng.length; gi++) goalsHtml += renderAchievementRow(ng[gi].id, s);
+      byId("goals").innerHTML = goalsHtml;
+      goalsCard.hidden = false;
+    } else {
+      byId("goals").innerHTML = "";
+      goalsCard.hidden = true;
+    }
+
+    // 2. Achievements card body: Near completion (if any) + 7 real categories.
+    var achHtml = "";
+    var nc = nearCompletion(s);
+    if (nc.length > 0) {
+      var ncIds = nc.map(function (a) { return a.id; });
+      achHtml += renderCategorySection("Near completion", ncIds, s, true, nc.length);
+    }
+    var byCategory = {};
+    for (var ck = 0; ck < CATEGORY_ORDER.length; ck++) byCategory[CATEGORY_ORDER[ck]] = [];
+    for (var ai = 0; ai < ACH_IDS.length; ai++) {
+      var aid = ACH_IDS[ai];
+      var cat = categorize(aid);
+      if (byCategory[cat]) byCategory[cat].push(aid);
+    }
+    for (var ci = 0; ci < CATEGORY_ORDER.length; ci++) {
+      var cname = CATEGORY_ORDER[ci];
+      var cids = byCategory[cname];
+      var openByDefault = cname === "Evolution";
+      achHtml += renderCategorySection(cname, cids, s, openByDefault, undefined);
     }
     byId("achievements").innerHTML = achHtml;
 
