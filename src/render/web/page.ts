@@ -92,6 +92,10 @@ export function renderPage(state: State | null): string {
     <p class="card-label">Stats</p>
     <div id="stats"></div>
   </section>
+  <section class="card goals-card" id="goals-card" hidden>
+    <p class="card-label">Next Goals</p>
+    <div id="goals"></div>
+  </section>
   <section class="card achievements-card">
     <p class="card-label">Achievements</p>
     <div id="achievements"></div>
