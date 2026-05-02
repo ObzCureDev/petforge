@@ -20,10 +20,20 @@ export function AchievementGrid({ unlocked }: AchievementGridProps): React.React
       {ACHIEVEMENT_IDS.map((id) => {
         const isUnlocked = unlockedSet.has(id);
         const def = ACHIEVEMENTS[id as AchievementId];
+        const medalEmoji =
+          def.medal === "bronze"
+            ? "🥉"
+            : def.medal === "silver"
+              ? "🥈"
+              : def.medal === "gold"
+                ? "🥇"
+                : def.medal === "platinum"
+                  ? "💎"
+                  : "  ";
         return (
           <Box key={id}>
             <Text color={isUnlocked ? "green" : "gray"}>
-              {isUnlocked ? "✓" : "·"} {def.name}
+              {isUnlocked ? "✓" : "·"} {medalEmoji} {def.name}
             </Text>
           </Box>
         );
