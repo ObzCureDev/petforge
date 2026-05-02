@@ -27,7 +27,10 @@ import crypto from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import lockfile from "proper-lockfile";
+import { migrateV1ToV2, type V1State } from "./migrations/v1-to-v2.js";
+import { migrateV31Achievements } from "./migrations/v32-achievement-rename.js";
 import { HOOK_ERROR_LOG, LOCK_FILE, PETFORGE_DIR, STATE_FILE } from "./paths.js";
+import { generatePet } from "./pet-engine.js";
 import { createInitialState, type Pet, type State, StateSchema } from "./schema.js";
 
 // ---------- Errors ----------
@@ -120,11 +123,56 @@ export async function readState(): Promise<State> {
     throw new StateCorruptError("state.json is not valid JSON", err);
   }
 
+  // V1 -> V2 transparent migration. The on-disk file stays V1-shaped until
+  // the next withStateLock cycle rewrites it.
+  const v1 = looksLikeV1(parsed);
+  if (v1) {
+    const migrated = migrateV1ToV2(v1, () => generatePet());
+    // V1 states may contain V3.1 achievement IDs that need renaming too.
+    const v32Achievements = migrateV31Achievements({
+      unlocked: migrated.achievements.unlocked,
+      pendingUnlocks: migrated.achievements.pendingUnlocks,
+    });
+    migrated.achievements.unlocked = v32Achievements.unlocked;
+    migrated.achievements.pendingUnlocks = v32Achievements.pendingUnlocks;
+    return migrated;
+  }
+
+  // V3.1 -> V3.2 achievement ID rename. schemaVersion is still 2 for both
+  // V3.1 and V3.2; only the contents of `unlocked` / `pendingUnlocks` change.
+  // Idempotent: running on already-V3.2 state is a no-op.
+  if (typeof parsed === "object" && parsed !== null) {
+    const obj = parsed as { achievements?: { unlocked?: unknown; pendingUnlocks?: unknown } };
+    const a = obj.achievements;
+    if (a && Array.isArray(a.unlocked) && Array.isArray(a.pendingUnlocks)) {
+      const v32 = migrateV31Achievements({
+        unlocked: a.unlocked.filter((x): x is string => typeof x === "string"),
+        pendingUnlocks: a.pendingUnlocks.filter((x): x is string => typeof x === "string"),
+      });
+      a.unlocked = v32.unlocked;
+      a.pendingUnlocks = v32.pendingUnlocks;
+    }
+  }
+
   const result = StateSchema.safeParse(parsed);
   if (!result.success) {
     throw new StateCorruptError("state.json failed schema validation", result.error);
   }
   return result.data;
+}
+
+/**
+ * Quick structural check to identify a V1 state file. We only verify the
+ * minimum needed before delegating to the migration function — V1 was
+ * previously written by us, so deep validation is unnecessary.
+ */
+function looksLikeV1(parsed: unknown): V1State | null {
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const v = parsed as Record<string, unknown>;
+  if (v.schemaVersion !== 1) return null;
+  if (typeof v.pet !== "object" || v.pet === null) return null;
+  if (typeof v.progress !== "object" || v.progress === null) return null;
+  return v as unknown as V1State;
 }
 
 /**

@@ -65,7 +65,7 @@ describe("schema", () => {
     const pet = testPet(petEngine);
     const s = schema.createInitialState(pet, 1700000000000);
 
-    expect(s.schemaVersion).toBe(1);
+    expect(s.schemaVersion).toBe(2);
     expect(s.pet).toEqual(pet);
     expect(s.progress).toEqual({
       xp: 0,
@@ -88,7 +88,7 @@ describe("schema", () => {
   it("StateSchema rejects unknown species", async () => {
     const { petEngine, schema } = await loadModules();
     const s = schema.createInitialState(testPet(petEngine));
-    const broken = { ...s, pet: { ...s.pet, species: "dragon" } };
+    const broken = { ...s, pet: { ...s.pet, species: "pixel" } };
     expect(schema.StateSchema.safeParse(broken).success).toBe(false);
   });
 });
@@ -117,7 +117,7 @@ describe("state", () => {
     await fs.writeFile(paths.STATE_FILE, JSON.stringify(fresh, null, 2), "utf8");
 
     const loaded = await state.readState();
-    expect(loaded.schemaVersion).toBe(1);
+    expect(loaded.schemaVersion).toBe(2);
     expect(loaded.pet.species).toBe(pet.species);
     expect(loaded.pet.seed).toBe(pet.seed);
     expect(loaded.progress.level).toBe(1);
@@ -143,7 +143,7 @@ describe("state", () => {
     await fs.writeFile(paths.STATE_FILE, "garbage", "utf8");
 
     const fresh = await state.recoverCorruptState(() => testPet(petEngine));
-    expect(fresh.schemaVersion).toBe(1);
+    expect(fresh.schemaVersion).toBe(2);
     expect(fresh.progress.xp).toBe(0);
 
     const entries = await fs.readdir(paths.PETFORGE_DIR);
@@ -172,7 +172,7 @@ describe("state", () => {
     expect(s.meta.updatedAt).toBeLessThanOrEqual(after);
 
     const onDisk = JSON.parse(await fs.readFile(paths.STATE_FILE, "utf8"));
-    expect(onDisk.schemaVersion).toBe(1);
+    expect(onDisk.schemaVersion).toBe(2);
     expect(onDisk.meta.updatedAt).toBe(s.meta.updatedAt);
 
     // tmp file should be cleaned up via rename
@@ -283,7 +283,7 @@ describe("renameWithRetry (via writeStateAtomic)", () => {
       await state.writeStateAtomic(s);
       expect(renameSpy).toHaveBeenCalledTimes(1);
       const onDisk = JSON.parse(await fs.readFile(paths.STATE_FILE, "utf8"));
-      expect(onDisk.schemaVersion).toBe(1);
+      expect(onDisk.schemaVersion).toBe(2);
     } finally {
       renameSpy.mockRestore();
     }
@@ -353,5 +353,25 @@ describe("renameWithRetry (via writeStateAtomic)", () => {
     } finally {
       renameSpy.mockRestore();
     }
+  });
+});
+
+describe("V3.1 -> V3.2 achievement ID rename through readState", () => {
+  it("renames V3.1 IDs in unlocked + pendingUnlocks on read", async () => {
+    const { paths, petEngine, schema, state } = await loadModules();
+    await state.ensurePetforgeDir();
+    const fresh = schema.createInitialState(testPet(petEngine), 1700000000000);
+    fresh.achievements.unlocked = ["hatch", "tool_whisperer", "centurion"];
+    fresh.achievements.pendingUnlocks = ["first_tool", "marathon"];
+    await fs.writeFile(paths.STATE_FILE, JSON.stringify(fresh, null, 2), "utf8");
+
+    const out = await state.readState();
+    expect(out.achievements.unlocked).toEqual([
+      "hatch_hatchling",
+      "tool_5k",
+      "hatch_mythic",
+    ]);
+    // first_tool dropped; marathon renamed to marathon_4h
+    expect(out.achievements.pendingUnlocks).toEqual(["marathon_4h"]);
   });
 });
