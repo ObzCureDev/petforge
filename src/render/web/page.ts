@@ -16,6 +16,7 @@ import { ACHIEVEMENTS } from "../../core/achievements.js";
 import { ACHIEVEMENT_IDS, type State } from "../../core/schema.js";
 import { LEVEL_BOUNDARIES } from "../../core/xp.js";
 import { SPECIES_FRAMES } from "../species/index.js";
+import { ICON_JPEG_B64, ICON_PNG_B64 } from "./icon-data.js";
 
 /**
  * Escape any character that could break out of an inline `<script>` block,
@@ -58,13 +59,20 @@ export function renderPage(state: State | null): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PetForge">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=2">
+<link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png?v=2">
+<link rel="alternate icon" type="image/jpeg" href="/icon.jpg?v=2">
 <title>PetForge</title>
 <style>${CSS}</style>
 </head>
 <body>
 <main id="app">
   <pre id="pet" class="pet"></pre>
-  <p class="header"><span id="species"></span> &middot; <span id="rarity"></span><span id="shiny" hidden> &#x2728;</span></p>
+  <p class="header"><span id="species"></span> &middot; <span id="rarity"></span> &middot; <span id="phase"></span><span id="shiny" hidden> &#x2728;</span></p>
   <div class="xpbar">
     <div class="xpbar-track"><div id="xp-fill" class="xpbar-fill"></div></div>
     <p class="xpbar-label" id="xp-label"></p>
@@ -75,7 +83,7 @@ export function renderPage(state: State | null): string {
   </section>
   <section>
     <h2>ACHIEVEMENTS</h2>
-    <ul id="achievements"></ul>
+    <div id="achievements"></div>
   </section>
   <p id="activity" class="activity"></p>
   <p id="otel-activity" class="activity" hidden></p>
@@ -94,7 +102,7 @@ export function renderPage(state: State | null): string {
 const CSS = `
   body {
     background: #0d1117;
-    color: #c9d1d9;
+    color: #e6edf3;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     margin: 0;
     padding: 1rem;
@@ -109,7 +117,7 @@ const CSS = `
     width: fit-content;
     min-height: 8em;
   }
-  .header { text-align: center; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em; }
+  .header { text-align: center; color: #e6edf3; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
   .xpbar { margin: 1.5rem 0; }
   .xpbar-track {
     background: #21262d;
@@ -123,15 +131,15 @@ const CSS = `
     width: 0;
     transition: width 0.4s;
   }
-  .xpbar-label { text-align: center; opacity: 0.7; margin: 0.25rem 0; }
+  .xpbar-label { text-align: center; color: #c9d1d9; margin: 0.25rem 0; font-size: 0.9rem; }
   h2 {
     font-size: 0.85rem;
     letter-spacing: 0.1em;
-    opacity: 0.6;
+    color: #8b949e;
     margin: 1rem 0 0.5rem;
   }
-  .stat { display: flex; align-items: center; gap: 0.5rem; margin: 0.25rem 0; }
-  .stat-name { width: 6em; opacity: 0.8; font-size: 0.85rem; }
+  .stat { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
+  .stat-name { width: 6em; color: #c9d1d9; font-size: 0.85rem; }
   .stat-bar {
     flex: 1;
     background: #21262d;
@@ -140,19 +148,82 @@ const CSS = `
     overflow: hidden;
   }
   .stat-bar-fill { background: #2ea043; height: 100%; width: 0; transition: width 0.4s; }
-  .stat-val { width: 2em; text-align: right; opacity: 0.7; }
-  ul { list-style: none; padding: 0; margin: 0; columns: 2; gap: 1rem; }
-  li { padding: 0.15rem 0; opacity: 0.5; }
-  li.unlocked { opacity: 1; color: #3fb950; }
-  .activity { text-align: center; opacity: 0.7; margin-top: 1rem; font-size: 0.85rem; }
-  .status { text-align: center; opacity: 0.4; font-size: 0.75rem; }
+  .stat-val { width: 2.5em; text-align: right; color: #c9d1d9; font-size: 0.85rem; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { padding: 0.15rem 0; color: #8b949e; }
+  li.unlocked { color: #3fb950; }
 
-  /* rarity glows */
+  /* Achievement detail (clickable) */
+  .ach {
+    border-bottom: 1px solid #21262d;
+    padding: 0;
+    color: #8b949e;
+  }
+  .ach.unlocked { color: #e6edf3; }
+  .ach-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .ach-summary::-webkit-details-marker { display: none; }
+  .ach-summary::marker { content: ''; }
+  .ach-mark { width: 1em; flex-shrink: 0; color: #6e7681; font-weight: bold; }
+  .ach.unlocked .ach-mark { color: #3fb950; }
+  .ach-name { flex: 1; font-size: 0.95rem; }
+  .ach-pct { color: #58a6ff; font-size: 0.8rem; min-width: 3em; text-align: right; font-weight: 600; }
+  .ach.unlocked .ach-pct { color: #3fb950; }
+  .ach-detail {
+    padding: 0.4rem 0 0.85rem 1.5em;
+    font-size: 0.85rem;
+  }
+  .ach-desc { margin: 0 0 0.5rem 0; color: #c9d1d9; line-height: 1.4; }
+  .ach-bar-track {
+    background: #21262d;
+    height: 0.4rem;
+    border-radius: 0.2rem;
+    overflow: hidden;
+    margin: 0.25rem 0;
+  }
+  .ach-bar-fill {
+    background: #58a6ff;
+    height: 100%;
+    transition: width 0.4s;
+  }
+  .ach.unlocked .ach-bar-fill { background: #3fb950; }
+  /* Medal-specific tints (overrides .ach.unlocked default). */
+  .ach.medal-bronze.unlocked .ach-bar-fill   { background: #cd7f32; }
+  .ach.medal-bronze.unlocked .ach-pct        { color: #cd7f32; }
+  .ach.medal-bronze.unlocked .ach-mark       { color: #cd7f32; }
+  .ach.medal-silver.unlocked .ach-bar-fill   { background: #c9d1d9; }
+  .ach.medal-silver.unlocked .ach-pct        { color: #c9d1d9; }
+  .ach.medal-silver.unlocked .ach-mark       { color: #c9d1d9; }
+  .ach.medal-gold.unlocked .ach-bar-fill     { background: #ffd700; }
+  .ach.medal-gold.unlocked .ach-pct          { color: #ffd700; }
+  .ach.medal-gold.unlocked .ach-mark         { color: #ffd700; }
+  .ach.medal-platinum.unlocked .ach-bar-fill { background: #79c0ff; }
+  .ach.medal-platinum.unlocked .ach-pct      { color: #79c0ff; }
+  .ach.medal-platinum.unlocked .ach-mark     { color: #79c0ff; }
+  .ach-progress-label { margin: 0.2rem 0 0; color: #8b949e; font-size: 0.8rem; }
+  .activity { text-align: center; color: #c9d1d9; margin-top: 1rem; font-size: 0.85rem; }
+  .status { text-align: center; color: #6e7681; font-size: 0.75rem; }
+
+  /* rarity glows on the pet ASCII (text-shadow only, body color unchanged) */
   .rarity-uncommon  { text-shadow: 0 0 6px rgba(63,185,80,0.6); }
   .rarity-rare      { text-shadow: 0 0 8px rgba(88,166,255,0.7); }
   .rarity-epic      { text-shadow: 0 0 10px rgba(188,140,253,0.7); }
   .rarity-legendary { text-shadow: 0 0 12px rgba(255,215,0,0.8); animation: legendary-pulse 2s infinite; }
   @keyframes legendary-pulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.3); } }
+
+  /* rarity colors on the header word (independent of pet glow) */
+  .rarity-tag-common    { color: #8b949e; }
+  .rarity-tag-uncommon  { color: #3fb950; }
+  .rarity-tag-rare      { color: #58a6ff; }
+  .rarity-tag-epic      { color: #bc8cfd; }
+  .rarity-tag-legendary { color: #ffd700; text-shadow: 0 0 4px rgba(255,215,0,0.4); }
 
   /* shiny rainbow */
   .shiny { animation: shiny-cycle 4s linear infinite; }
@@ -205,6 +276,104 @@ const CLIENT_JS = `
     if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
     if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
     return String(n);
+  }
+
+  // Per-achievement progress used by the click-to-expand details. Mirrors the
+  // unlock conditions in src/core/achievements.ts and src/core/otel/achievements.ts.
+  function achievementProgress(id, s) {
+    var c = s.counters || {};
+    var p = s.progress || {};
+    var o = c.otel || {};
+    function maxOver(field) {
+      var max = 0;
+      var as = c.activeSessions || {};
+      for (var k in as) {
+        var v = as[k] && as[k][field];
+        if (typeof v === "number" && v > max) max = v;
+        if (Array.isArray(v) && v.length > max) max = v.length;
+      }
+      return max;
+    }
+    // Active-session duration in ms (max across all open sessions).
+    function activeSessionDurationMs() {
+      var as = c.activeSessions || {};
+      var max = 0;
+      var nowMs = Date.now();
+      for (var k in as) {
+        var ts = as[k] && as[k].startTs;
+        if (typeof ts === "number") {
+          var d = nowMs - ts;
+          if (d > max) max = d;
+        }
+      }
+      return max;
+    }
+    var FOUR_H = 4 * 60 * 60 * 1000;
+    var TWELVE_H = 12 * 60 * 60 * 1000;
+    var TWENTYFOUR_H = 24 * 60 * 60 * 1000;
+    switch (id) {
+      // Hatch ladder (level)
+      case "hatch_egg": return { current: p.level || 0, target: 1 };
+      case "hatch_hatchling": return { current: p.level || 0, target: 5 };
+      case "hatch_junior": return { current: p.level || 0, target: 20 };
+      case "hatch_adult": return { current: p.level || 0, target: 50 };
+      case "hatch_elder": return { current: p.level || 0, target: 80 };
+      case "hatch_mythic": return { current: p.level || 0, target: 100 };
+      // Streak
+      case "streak_3d": return { current: c.streakDays || 0, target: 3 };
+      case "streak_7d": return { current: c.streakDays || 0, target: 7 };
+      case "streak_30d": return { current: c.streakDays || 0, target: 30 };
+      case "streak_100d": return { current: c.streakDays || 0, target: 100 };
+      // Tool
+      case "tool_5k": return { current: c.toolUseTotal || 0, target: 5000 };
+      case "tool_25k": return { current: c.toolUseTotal || 0, target: 25000 };
+      case "tool_100k": return { current: c.toolUseTotal || 0, target: 100000 };
+      // Marathon
+      case "marathon_4h": return { current: Math.min(FOUR_H, activeSessionDurationMs()), target: FOUR_H };
+      case "marathon_12h": return { current: Math.min(TWELVE_H, activeSessionDurationMs()), target: TWELVE_H };
+      case "marathon_24h": return { current: Math.min(TWENTYFOUR_H, activeSessionDurationMs()), target: TWENTYFOUR_H };
+      // Night
+      case "night_200": return { current: c.nightOwlEvents || 0, target: 200 };
+      case "night_1k": return { current: c.nightOwlEvents || 0, target: 1000 };
+      case "night_5k": return { current: c.nightOwlEvents || 0, target: 5000 };
+      // Polyglot (max distinct extensions across active sessions)
+      case "polyglot_5": return { current: maxOver("fileExtensions"), target: 5 };
+      case "polyglot_8": return { current: maxOver("fileExtensions"), target: 8 };
+      case "polyglot_12": return { current: maxOver("fileExtensions"), target: 12 };
+      // Refactor (max tool count across active sessions)
+      case "refactor_100": return { current: maxOver("toolUseCount"), target: 100 };
+      case "refactor_250": return { current: maxOver("toolUseCount"), target: 250 };
+      case "refactor_500": return { current: maxOver("toolUseCount"), target: 500 };
+      // Code lines (OTel)
+      case "code_10k": return { current: o.linesAdded || 0, target: 10000 };
+      case "code_50k": return { current: o.linesAdded || 0, target: 50000 };
+      case "code_200k": return { current: o.linesAdded || 0, target: 200000 };
+      // Token (OTel)
+      case "token_1m": return { current: (o.tokensIn || 0) + (o.tokensOut || 0), target: 1000000 };
+      case "token_10m": return { current: (o.tokensIn || 0) + (o.tokensOut || 0), target: 10000000 };
+      case "token_100m": return { current: (o.tokensIn || 0) + (o.tokensOut || 0), target: 100000000 };
+      // Cache (OTel) - show volume progress; ratio is a side-condition
+      case "cache_100k": return { current: (o.tokensIn || 0) + (o.tokensCacheRead || 0), target: 100000 };
+      case "cache_1m": return { current: (o.tokensIn || 0) + (o.tokensCacheRead || 0), target: 1000000 };
+      case "cache_10m": return { current: (o.tokensIn || 0) + (o.tokensCacheRead || 0), target: 10000000 };
+      // Frugal (OTel) - show prompt progress; cost ceiling is a side-condition
+      case "frugal_100p": return { current: c.promptsTotal || 0, target: 100 };
+      case "frugal_500p": return { current: c.promptsTotal || 0, target: 500 };
+      case "frugal_2kp": return { current: c.promptsTotal || 0, target: 2000 };
+      // Big spender (OTel) - costUsdCents in cents; thresholds in cents
+      case "big_spender_100": return { current: o.costUsdCents || 0, target: 10000 };
+      case "big_spender_500": return { current: o.costUsdCents || 0, target: 50000 };
+      case "big_spender_2k": return { current: o.costUsdCents || 0, target: 200000 };
+      // PR (OTel)
+      case "pr_50": return { current: o.prCount || 0, target: 50 };
+      case "pr_200": return { current: o.prCount || 0, target: 200 };
+      case "pr_500": return { current: o.prCount || 0, target: 500 };
+      // Picky (OTel)
+      case "picky_50": return { current: o.editsRejected || 0, target: 50 };
+      case "picky_250": return { current: o.editsRejected || 0, target: 250 };
+      case "picky_1k": return { current: o.editsRejected || 0, target: 1000 };
+      default: return { current: 0, target: 1 };
+    }
   }
 
   function stripBuddyStatLines(cache) {
@@ -278,37 +447,75 @@ const CLIENT_JS = `
   var frameIdx = 0;
   var currentState = initial;
 
-  function render() {
-    var s = currentState;
+  // Cached per-state derived values, refreshed by renderState(). renderFrame
+  // reads from this cache so the animation tick never re-parses the buddy
+  // card or rebuilds the species lookup.
+  var derived = { species: null, frames: [], className: "pet" };
+
+  function computeDerived(s) {
+    var phase = s.progress.phase;
+    var buddyOn = s.buddy && s.buddy.userToggle === "on" && s.buddy.cardCache;
+    var buddy = buddyOn ? parseBuddyCard(s.buddy.cardCache) : { stats: [] };
+    var matchedSpecies =
+      buddy.species && FRAMES[buddy.species.toLowerCase()] ? buddy.species.toLowerCase() : null;
+    var species = matchedSpecies || s.pet.species;
+    var frames = (FRAMES[species] && FRAMES[species][phase]) || [];
+    var displayRarity = buddy.rarity || s.pet.rarity;
+    return {
+      buddy: buddy,
+      buddyOn: !!buddyOn,
+      phase: phase,
+      species: species,
+      frames: frames,
+      displayRarity: displayRarity,
+      className: "pet phase-" + phase + " rarity-" + displayRarity + (s.pet.shiny ? " shiny" : ""),
+    };
+  }
+
+  // Animation-only update: cycles the pet frame from the cached species
+  // frames. Does NOT touch any other DOM, so user-opened <details> elements
+  // (achievements) stay open across the 8 FPS tick.
+  function renderFrame() {
     var pet = byId("pet");
-    if (!s) {
+    if (!currentState) {
       pet.textContent = "(no state yet — open Claude Code to spawn your pet)";
       pet.className = "pet";
+      return;
+    }
+    var fr = derived.frames;
+    if (fr.length > 0) pet.textContent = fr[frameIdx % fr.length];
+    pet.className = derived.className;
+  }
+
+  // Data update: runs on every SSE push. Refreshes the derived cache and
+  // the static-but-data-driven elements (header, xp bar, stats panel,
+  // achievements list, activity, otel block).
+  function renderState() {
+    var s = currentState;
+    if (!s) {
       byId("status").textContent = "waiting for first hook";
       return;
     }
-    var phase = s.progress.phase;
-    var species = s.pet.species;
-    var speciesFrames = (FRAMES[species] && FRAMES[species][phase]) || [];
-    var buddyOverride =
-      s.buddy && s.buddy.userToggle === "on" && s.buddy.cardCache ? s.buddy.cardCache : null;
-    var buddy = buddyOverride ? parseBuddyCard(buddyOverride) : { stats: [] };
-    var useBuddyStats = buddy.stats && buddy.stats.length >= 3;
-    var renderedBuddy = buddyOverride && useBuddyStats ? stripBuddyStatLines(buddyOverride) : buddyOverride;
-    var frame = renderedBuddy
-      ? renderedBuddy
-      : (speciesFrames.length > 0 ? speciesFrames[frameIdx % speciesFrames.length] : "");
-    pet.textContent = frame;
-    var displayRarity = buddy.rarity || s.pet.rarity;
-    pet.className = "pet phase-" + phase + " rarity-" + displayRarity + (s.pet.shiny ? " shiny" : "");
+    derived = computeDerived(s);
+    var phase = derived.phase;
+    var species = derived.species;
+    var buddy = derived.buddy;
+    var displayRarity = derived.displayRarity;
 
     byId("species").textContent = (buddy.name || species).toUpperCase();
-    byId("rarity").textContent = displayRarity;
+    var rarityEl = byId("rarity");
+    rarityEl.textContent = displayRarity;
+    rarityEl.className = "rarity-tag-" + displayRarity;
+    byId("phase").textContent = phase;
     byId("shiny").hidden = !s.pet.shiny;
+    var useBuddyStats = buddy.stats && buddy.stats.length >= 3;
 
     var prog = nextLevelProgress(s.progress.xp, s.progress.level);
     byId("xp-fill").style.width = (prog.ratio * 100) + "%";
-    byId("xp-label").textContent = "L" + s.progress.level + "  " + prog.label;
+    // Plain string replace (single occurrence per label) — avoids regex
+    // escape pitfalls when this source ships through biome / TS template literal.
+    var xpText = prog.label.replace("xp", "XP");
+    byId("xp-label").textContent = "LVL " + s.progress.level + " - " + xpText;
 
     var statsHtml = "";
     if (useBuddyStats) {
@@ -322,7 +529,7 @@ const CLIENT_JS = `
         statsHtml += '</div>';
       }
     } else {
-      var statKeys = ["focus", "grit", "flow", "craft", "spark"];
+      var statKeys = ["debugging", "patience", "chaos", "wisdom", "snark"];
       for (var i = 0; i < statKeys.length; i++) {
         var k = statKeys[i];
         var v = s.pet.stats[k];
@@ -341,9 +548,30 @@ const CLIENT_JS = `
       var id = ACH_IDS[j];
       var def = ACH[id];
       var unlocked = s.achievements.unlocked.indexOf(id) !== -1;
-      achHtml += '<li class="' + (unlocked ? 'unlocked' : '') + '">';
-      achHtml += (unlocked ? '✓' : '·') + ' ' + def.name;
-      achHtml += '</li>';
+      var prog = achievementProgress(id, s);
+      var ratio = prog.target > 0 ? Math.min(1, prog.current / prog.target) : 0;
+      var pctStr = Math.round(ratio * 100) + "%";
+      var progressLabel = prog.current.toLocaleString() + " / " + prog.target.toLocaleString();
+      var medal = def.medal || "";
+      var medalEmoji = medal === "bronze" ? "🥉"
+        : medal === "silver" ? "🥈"
+        : medal === "gold" ? "🥇"
+        : medal === "platinum" ? "💎"
+        : "";
+      var classes = "ach" + (unlocked ? " unlocked" : "") + (medal ? " medal-" + medal : "");
+      achHtml += '<details class="' + classes + '">';
+      achHtml += '<summary class="ach-summary">';
+      achHtml += '<span class="ach-mark">' + (unlocked ? "✓" : "·") + '</span> ';
+      if (medalEmoji) achHtml += '<span class="ach-medal">' + medalEmoji + '</span> ';
+      achHtml += '<span class="ach-name">' + def.name + '</span>';
+      achHtml += '<span class="ach-pct">' + (unlocked ? "" : pctStr) + '</span>';
+      achHtml += '</summary>';
+      achHtml += '<div class="ach-detail">';
+      achHtml += '<p class="ach-desc">' + def.description + '</p>';
+      achHtml += '<div class="ach-bar-track"><div class="ach-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
+      achHtml += '<p class="ach-progress-label">' + progressLabel + (unlocked ? " · unlocked (+" + def.xp + " xp)" : "") + '</p>';
+      achHtml += '</div>';
+      achHtml += '</details>';
     }
     byId("achievements").innerHTML = achHtml;
 
@@ -366,11 +594,14 @@ const CLIENT_JS = `
     } else {
       otelEl.hidden = true;
     }
-    byId("status").textContent = "live · phase: " + phase;
+    byId("status").textContent = "live";
   }
 
-  // Animation tick — 8 FPS
-  setInterval(function () { frameIdx++; render(); }, 125);
+  // Initial paint: full state + first frame.
+  function render() { renderState(); renderFrame(); }
+
+  // Animation tick — 8 FPS, frame-only (preserves user-opened <details>).
+  setInterval(function () { frameIdx++; renderFrame(); }, 125);
 
   // SSE
   var backoff = 500;
@@ -401,3 +632,54 @@ const CLIENT_JS = `
   }
 })();
 `;
+
+/**
+ * PWA icons as Buffers ready to serve. Sources in `src/render/web/assets/`,
+ * inlined via base64 so the bundled CLI stays self-contained.
+ *  - PNG 512x512 (square, dark padding) is the primary icon: iOS
+ *    apple-touch-icon, Android web manifest. Standard PWA size.
+ *  - JPEG 531x477 is the original artwork, kept as a fallback.
+ */
+export const ICON_PNG_BUFFER = Buffer.from(ICON_PNG_B64, "base64");
+export const ICON_PNG_TYPE = "image/png";
+export const ICON_JPEG_BUFFER = Buffer.from(ICON_JPEG_B64, "base64");
+export const ICON_JPEG_TYPE = "image/jpeg";
+
+/**
+ * Cache-busting suffix for icon URLs. Bump when the icon assets change so
+ * iOS / Android re-fetch the updated PWA icon on next "Add to Home Screen".
+ */
+export const ICON_VERSION = "2";
+
+/**
+ * Web manifest enabling install-to-home-screen on iOS / Android. Standalone
+ * display strips the browser chrome so the served page feels like an app.
+ */
+export const MANIFEST_JSON = JSON.stringify(
+  {
+    name: "PetForge",
+    short_name: "PetForge",
+    description: "Local-first RPG progression layer for AI coding companions",
+    start_url: "/",
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#0d1117",
+    theme_color: "#0d1117",
+    icons: [
+      {
+        src: "/icon-512.png?v=2",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icon-512.png?v=2",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
+  },
+  null,
+  2,
+);
