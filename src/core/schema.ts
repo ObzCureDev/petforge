@@ -10,11 +10,70 @@ import { createInitialOtelCounters, type OtelCounters, OtelCountersSchema } from
 
 // ---------- Enums ----------
 
-export const SPECIES = ["pixel", "glitch", "daemon", "spark", "blob"] as const;
+export const SPECIES = [
+  // Common (7)
+  "duck",
+  "goose",
+  "blob",
+  "turtle",
+  "snail",
+  "mushroom",
+  "chonk",
+  // Uncommon (4)
+  "octopus",
+  "penguin",
+  "cactus",
+  "rabbit",
+  // Rare (4)
+  "cat",
+  "owl",
+  "capybara",
+  "robot",
+  // Epic (2)
+  "ghost",
+  "axolotl",
+  // Legendary (1)
+  "dragon",
+] as const;
 export type Species = (typeof SPECIES)[number];
 
 export const RARITIES = ["common", "uncommon", "rare", "epic", "legendary"] as const;
 export type Rarity = (typeof RARITIES)[number];
+
+/**
+ * Each species has a fixed rarity tier — matches Buddy's design where Octopus
+ * is always Uncommon, Dragon always Legendary, etc. `pickRarity` rolls the
+ * tier first; `pickSpecies` then selects from the matching bucket.
+ */
+export const SPECIES_RARITY: Record<Species, Rarity> = {
+  duck: "common",
+  goose: "common",
+  blob: "common",
+  turtle: "common",
+  snail: "common",
+  mushroom: "common",
+  chonk: "common",
+  octopus: "uncommon",
+  penguin: "uncommon",
+  cactus: "uncommon",
+  rabbit: "uncommon",
+  cat: "rare",
+  owl: "rare",
+  capybara: "rare",
+  robot: "rare",
+  ghost: "epic",
+  axolotl: "epic",
+  dragon: "legendary",
+};
+
+/** Pre-built rarity buckets for `pickSpecies`. Order within each is stable. */
+export const SPECIES_BY_RARITY: Record<Rarity, readonly Species[]> = {
+  common: ["duck", "goose", "blob", "turtle", "snail", "mushroom", "chonk"],
+  uncommon: ["octopus", "penguin", "cactus", "rabbit"],
+  rare: ["cat", "owl", "capybara", "robot"],
+  epic: ["ghost", "axolotl"],
+  legendary: ["dragon"],
+};
 
 export const PHASES = ["egg", "hatchling", "junior", "adult", "elder", "mythic"] as const;
 export type Phase = (typeof PHASES)[number];
@@ -23,37 +82,77 @@ export const BUDDY_TOGGLES = ["auto", "on", "off"] as const;
 export type BuddyToggle = (typeof BUDDY_TOGGLES)[number];
 
 export const ACHIEVEMENT_IDS = [
-  // V1
-  "hatch",
-  "first_tool",
-  "marathon",
-  "night_owl",
+  // Hatch phase ladder (6 - no medal, phase-based progression)
+  "hatch_egg",
+  "hatch_hatchling",
+  "hatch_junior",
+  "hatch_adult",
+  "hatch_elder",
+  "hatch_mythic",
+  // Streak (4 - bronze / silver / gold / platinum)
   "streak_3d",
   "streak_7d",
-  "polyglot",
-  "refactor_master",
-  "tool_whisperer",
-  "centurion",
-  // V2.0 (OTel-gated)
-  "code_architect",
-  "code_titan",
-  "token_whisperer_v2",
-  "cache_lord",
-  "frugal_coder",
-  "big_spender",
-  "pr_machine",
-  "picky_reviewer",
+  "streak_30d",
+  "streak_100d",
+  // Tool count (3)
+  "tool_5k",
+  "tool_25k",
+  "tool_100k",
+  // Marathon (3) - single-session duration
+  "marathon_4h",
+  "marathon_12h",
+  "marathon_24h",
+  // Night events (3)
+  "night_200",
+  "night_1k",
+  "night_5k",
+  // Polyglot (3) - distinct extensions per session
+  "polyglot_5",
+  "polyglot_8",
+  "polyglot_12",
+  // Refactor (3) - tools per session
+  "refactor_100",
+  "refactor_250",
+  "refactor_500",
+  // Code lines (OTel) (3)
+  "code_10k",
+  "code_50k",
+  "code_200k",
+  // Token volume (OTel) (3)
+  "token_1m",
+  "token_10m",
+  "token_100m",
+  // Cache hit (OTel) (3)
+  "cache_100k",
+  "cache_1m",
+  "cache_10m",
+  // Frugal - many prompts at low spend (OTel) (3)
+  "frugal_100p",
+  "frugal_500p",
+  "frugal_2kp",
+  // Big spender (OTel) (3) - IDs use dollar amounts
+  "big_spender_100",
+  "big_spender_500",
+  "big_spender_2k",
+  // PR machine (OTel) (3)
+  "pr_50",
+  "pr_200",
+  "pr_500",
+  // Picky reviewer (OTel) (3) - edits rejected
+  "picky_50",
+  "picky_250",
+  "picky_1k",
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
 
 // ---------- Sub-types ----------
 
 export interface PetStats {
-  focus: number;
-  grit: number;
-  flow: number;
-  craft: number;
-  spark: number;
+  debugging: number;
+  patience: number;
+  chaos: number;
+  wisdom: number;
+  snark: number;
 }
 
 export interface Pet {
@@ -125,7 +224,7 @@ export interface Meta {
 }
 
 export interface State {
-  schemaVersion: 1;
+  schemaVersion: 2;
   pet: Pet;
   progress: Progress;
   counters: Counters;
@@ -142,11 +241,11 @@ export const PhaseSchema = z.enum(PHASES);
 export const BuddyToggleSchema = z.enum(BUDDY_TOGGLES);
 
 export const PetStatsSchema = z.object({
-  focus: z.number(),
-  grit: z.number(),
-  flow: z.number(),
-  craft: z.number(),
-  spark: z.number(),
+  debugging: z.number(),
+  patience: z.number(),
+  chaos: z.number(),
+  wisdom: z.number(),
+  snark: z.number(),
 });
 
 export const PetSchema = z.object({
@@ -199,7 +298,7 @@ export const MetaSchema = z.object({
 });
 
 export const StateSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   pet: PetSchema,
   progress: ProgressSchema,
   counters: CountersSchema,
@@ -218,7 +317,7 @@ export const StateSchema = z.object({
  */
 export function createInitialState(pet: Pet, now: number = Date.now()): State {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     pet,
     progress: {
       xp: 0,

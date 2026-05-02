@@ -45,32 +45,168 @@ export interface HookEventInput {
 
 // ---------- Achievement registry ----------
 
+export type Medal = "bronze" | "silver" | "gold" | "platinum";
+
 export interface AchievementDef {
   id: AchievementId;
   name: string;
   xp: number;
+  /** One-line human-readable explanation of the unlock condition. */
+  description: string;
+  /**
+   * Optional medal label for UI rendering (color, emoji). Absent on
+   * non-tiered achievements (e.g. the `hatch_*` phase ladder, where the
+   * progression is the phase itself rather than a tier).
+   */
+  medal?: Medal;
 }
 
 export const ACHIEVEMENTS: Readonly<Record<AchievementId, AchievementDef>> = {
-  hatch: { id: "hatch", name: "Hatch", xp: 500 },
-  first_tool: { id: "first_tool", name: "First Tool", xp: 500 },
-  marathon: { id: "marathon", name: "Marathon", xp: 1_000 },
-  night_owl: { id: "night_owl", name: "Night Owl", xp: 1_500 },
-  streak_3d: { id: "streak_3d", name: "Streak 3 Days", xp: 1_000 },
-  streak_7d: { id: "streak_7d", name: "Streak 7 Days", xp: 2_500 },
-  polyglot: { id: "polyglot", name: "Polyglot", xp: 1_500 },
-  refactor_master: { id: "refactor_master", name: "Refactor Master", xp: 2_000 },
-  tool_whisperer: { id: "tool_whisperer", name: "Tool Whisperer", xp: 3_000 },
-  centurion: { id: "centurion", name: "Centurion", xp: 5_000 },
+  hatch: {
+    id: "hatch",
+    name: "Hatch",
+    xp: 500,
+    description: "Reach level 5 — your pet hatches out of the egg phase.",
+  },
+  first_tool: {
+    id: "first_tool",
+    name: "First Tool",
+    xp: 500,
+    description: "Use any tool through Claude Code for the first time.",
+  },
+  marathon: {
+    id: "marathon",
+    name: "Marathon",
+    xp: 1_000,
+    description: "Stay in a single Claude Code session for over 4 hours.",
+  },
+  ultra_marathon: {
+    id: "ultra_marathon",
+    name: "Ultra Marathon",
+    xp: 3_000,
+    description: "Stay in a single Claude Code session for over 12 hours.",
+  },
+  night_owl: {
+    id: "night_owl",
+    name: "Night Owl",
+    xp: 1_500,
+    description: "Trigger 200 events between 10pm and 2am local time.",
+  },
+  nocturnal: {
+    id: "nocturnal",
+    name: "Nocturnal",
+    xp: 4_000,
+    description: "Trigger 1,000 events between 10pm and 2am local time.",
+  },
+  streak_3d: {
+    id: "streak_3d",
+    name: "Streak 3 Days",
+    xp: 1_000,
+    description: "Use Claude Code on 3 consecutive days.",
+  },
+  streak_7d: {
+    id: "streak_7d",
+    name: "Streak 7 Days",
+    xp: 2_500,
+    description: "Use Claude Code on 7 consecutive days.",
+  },
+  streak_30d: {
+    id: "streak_30d",
+    name: "Streak 30 Days",
+    xp: 7_500,
+    description: "Use Claude Code on 30 consecutive days.",
+  },
+  streak_100d: {
+    id: "streak_100d",
+    name: "Streak 100 Days",
+    xp: 25_000,
+    description: "Use Claude Code on 100 consecutive days.",
+  },
+  polyglot: {
+    id: "polyglot",
+    name: "Polyglot",
+    xp: 1_500,
+    description: "Edit 5 different file extensions in a single session.",
+  },
+  refactor_master: {
+    id: "refactor_master",
+    name: "Refactor Master",
+    xp: 2_000,
+    description: "Use 100+ tools in a single session.",
+  },
+  tool_whisperer: {
+    id: "tool_whisperer",
+    name: "Tool Whisperer",
+    xp: 3_000,
+    description: "Use 5,000 tools total across all sessions.",
+  },
+  tool_master: {
+    id: "tool_master",
+    name: "Tool Master",
+    xp: 7_500,
+    description: "Use 25,000 tools total across all sessions.",
+  },
+  tool_legend: {
+    id: "tool_legend",
+    name: "Tool Legend",
+    xp: 20_000,
+    description: "Use 100,000 tools total across all sessions — legendary.",
+  },
+  centurion: {
+    id: "centurion",
+    name: "Centurion",
+    xp: 5_000,
+    description: "Reach level 100.",
+  },
   // V2.0 (OTel-gated)
-  code_architect: { id: "code_architect", name: "Code Architect", xp: 3_000 },
-  code_titan: { id: "code_titan", name: "Code Titan", xp: 10_000 },
-  token_whisperer_v2: { id: "token_whisperer_v2", name: "Token Whisperer ⚡", xp: 3_000 },
-  cache_lord: { id: "cache_lord", name: "Cache Lord", xp: 2_500 },
-  frugal_coder: { id: "frugal_coder", name: "Frugal Coder", xp: 1_500 },
-  big_spender: { id: "big_spender", name: "Big Spender", xp: 2_000 },
-  pr_machine: { id: "pr_machine", name: "PR Machine", xp: 3_000 },
-  picky_reviewer: { id: "picky_reviewer", name: "Picky Reviewer", xp: 1_500 },
+  code_architect: {
+    id: "code_architect",
+    name: "Code Architect",
+    xp: 3_000,
+    description: "Add 10,000 lines of code (OTel collector required).",
+  },
+  code_titan: {
+    id: "code_titan",
+    name: "Code Titan",
+    xp: 10_000,
+    description: "Add 100,000 lines of code (OTel collector required).",
+  },
+  token_whisperer_v2: {
+    id: "token_whisperer_v2",
+    name: "Token Whisperer",
+    xp: 3_000,
+    description: "Process 1,000,000 tokens (input + output combined).",
+  },
+  cache_lord: {
+    id: "cache_lord",
+    name: "Cache Lord",
+    xp: 2_500,
+    description: "Reach >=80% prompt-cache hit rate over 100,000+ tokens.",
+  },
+  frugal_coder: {
+    id: "frugal_coder",
+    name: "Frugal Coder",
+    xp: 1_500,
+    description: "Send 100+ prompts while keeping total spend under $1.",
+  },
+  big_spender: {
+    id: "big_spender",
+    name: "Big Spender",
+    xp: 2_000,
+    description: "Spend $100+ on Claude API across all sessions.",
+  },
+  pr_machine: {
+    id: "pr_machine",
+    name: "PR Machine",
+    xp: 3_000,
+    description: "Create 50+ pull requests through Claude Code.",
+  },
+  picky_reviewer: {
+    id: "picky_reviewer",
+    name: "Picky Reviewer",
+    xp: 1_500,
+    description: "Reject 50+ proposed edits during review.",
+  },
 } as const;
 
 // ---------- Core helpers ----------
@@ -124,17 +260,53 @@ export function checkAchievementsForEvent(
 
   const session = state.counters.activeSessions[input.sessionId];
 
+  // Shared helpers used across multiple events.
+  const checkStreaks = (): void => {
+    const d = state.counters.streakDays;
+    tryUnlock("streak_3d", d >= 3);
+    tryUnlock("streak_7d", d >= 7);
+    tryUnlock("streak_30d", d >= 30);
+    tryUnlock("streak_100d", d >= 100);
+  };
+  const checkNight = (): void => {
+    const n = state.counters.nightOwlEvents;
+    tryUnlock("night_owl", n >= 200);
+    tryUnlock("nocturnal", n >= 1_000);
+  };
+  const checkTools = (): void => {
+    const t = state.counters.toolUseTotal;
+    tryUnlock("tool_whisperer", t >= 5_000);
+    tryUnlock("tool_master", t >= 25_000);
+    tryUnlock("tool_legend", t >= 100_000);
+  };
+  // Marathon ladder — uses the active session's duration. Triggers from any
+  // event so a long-running session unlocks DURING the session, not only on
+  // close (Claude Code rarely fires session_end in normal usage).
+  const checkMarathon = (): void => {
+    if (!session) return;
+    const duration = input.now - session.startTs;
+    tryUnlock("marathon", duration > 4 * 60 * 60 * 1000);
+    tryUnlock("ultra_marathon", duration > 12 * 60 * 60 * 1000);
+  };
+
   switch (event) {
     case "prompt": {
       tryUnlock("hatch", state.progress.level >= 5);
-      tryUnlock("night_owl", state.counters.nightOwlEvents >= 50);
+      checkNight();
+      // streak counter is also incremented in the prompt hook (defensive
+      // catch-up when session_start did not fire — e.g. user resumed a
+      // pre-existing session across the day boundary).
+      checkStreaks();
+      checkMarathon();
       break;
     }
     case "post_tool_use": {
       tryUnlock("hatch", state.progress.level >= 5);
       tryUnlock("first_tool", state.counters.toolUseTotal >= 1);
-      tryUnlock("tool_whisperer", state.counters.toolUseTotal >= 1_000);
-      tryUnlock("night_owl", state.counters.nightOwlEvents >= 50);
+      checkTools();
+      checkNight();
+      checkStreaks();
+      checkMarathon();
       if (session) {
         tryUnlock("polyglot", session.fileExtensions.length >= 5);
         tryUnlock("refactor_master", session.toolUseCount >= 100);
@@ -142,26 +314,21 @@ export function checkAchievementsForEvent(
       break;
     }
     case "stop": {
-      // No achievement triggers tied to "stop" alone — XP for stop events is
-      // awarded by the hook handler. Still check level-based achievements
-      // here in case accumulated XP crossed level 5 (hatch) or 100
-      // (centurion).
+      // Stop fires often (every Claude response completion), so it's a good
+      // additional gate for active-session-duration achievements.
       tryUnlock("hatch", state.progress.level >= 5);
       tryUnlock("centurion", state.progress.level >= 100);
+      checkMarathon();
       break;
     }
     case "session_start": {
-      tryUnlock("streak_3d", state.counters.streakDays >= 3);
-      tryUnlock("streak_7d", state.counters.streakDays >= 7);
+      checkStreaks();
       break;
     }
     case "session_end": {
-      // Marathon: caller must NOT delete activeSessions[sessionId] before
-      // calling this function — we need startTs to compute duration.
-      if (session) {
-        const duration = input.now - session.startTs;
-        tryUnlock("marathon", duration > 60 * 60 * 1000);
-      }
+      // Marathon ladder: caller must NOT delete activeSessions[sessionId]
+      // before calling this function — we need startTs to compute duration.
+      checkMarathon();
       tryUnlock("hatch", state.progress.level >= 5);
       tryUnlock("centurion", state.progress.level >= 100);
       break;
