@@ -86,10 +86,10 @@ The `streak` family is the only one with a platinum tier in V3.2. Other platinum
 ### Final achievement count
 
 - 6 phase milestones (hatch ladder)
-- 12 families × 3 medals = 36 medal achievements
+- 13 medal families × 3 = 39 medal achievements
 - 1 platinum (streak)
 
-**Total: 43 achievements** (vs 24 in V3.1). `first_tool` and `centurion` are dropped; `tool_5k` (formerly `tool_whisperer`), `tool_25k` (formerly `tool_master`), `tool_100k` (formerly `tool_legend`), `streak_3d / 7d / 30d / 100d`, `night_owl` -> `night_200`, `nocturnal` -> `night_1k`, `marathon` -> `marathon_4h`, `ultra_marathon` -> `marathon_12h` are renamed to a uniform pattern.
+**Total: 46 achievements** (vs 24 in V3.1). `first_tool` and `centurion` are dropped; `tool_5k` (formerly `tool_whisperer`), `tool_25k` (formerly `tool_master`), `tool_100k` (formerly `tool_legend`), `streak_3d / 7d / 30d / 100d`, `night_owl` -> `night_200`, `nocturnal` -> `night_1k`, `marathon` -> `marathon_4h`, `ultra_marathon` -> `marathon_12h` are renamed to a uniform pattern.
 
 ### Naming convention
 
