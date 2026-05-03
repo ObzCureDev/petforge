@@ -13,7 +13,6 @@ import {
   pickShiny,
   pickSpecies,
 } from "../src/core/pet-engine.js";
-import type { Species } from "../src/core/schema.js";
 
 describe("pet-engine", () => {
   describe("computeSeed", () => {
