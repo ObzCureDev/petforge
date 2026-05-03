@@ -26,9 +26,8 @@ import {
   isNightOwlHour,
   updateStreak,
 } from "../core/achievements.js";
-import type { AchievementId } from "../core/schema.js";
 import { generatePet } from "../core/pet-engine.js";
-import type { State } from "../core/schema.js";
+import type { AchievementId, State } from "../core/schema.js";
 import { logHookError, recoverCorruptState, withStateLock } from "../core/state.js";
 import { levelForXp, phaseForLevel } from "../core/xp.js";
 
