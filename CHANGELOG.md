@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.5.1 - 2026-05-03
+
+**Cache token counters fixed.** The OTel collector was checking for
+`type=cache_read` and `type=cache_creation` (snake_case) on the
+`claude_code.token.usage` metric, but Claude Code 2.1+ emits these as
+camelCase: `cacheRead` and `cacheCreation`. Result: `tokensCacheRead`
+and `tokensCacheCreation` stayed at 0 for the entire history of the
+project, so:
+
+- Stats card "Cache: 0%" no matter how cache-friendly your usage was
+- The CURRENT RUN dev line "Cache: 0%" same issue
+- Three OTel-gated achievements unreachable: `cache_100k`, `cache_1m`,
+  `cache_10m` (volume gate was visible because volume = tokensIn +
+  tokensCacheRead, but the ratio gate >= 80% was impossible to clear
+  with cacheRead == 0)
+
+The fix accepts both formats — `cache_read` (legacy / docs) and
+`cacheRead` (Claude Code 2.1+) — so existing setups and future
+versions both work without further patches.
+
+The collector takes effect on the next ingest tick (every 30 s by
+default). After that, `tokensCacheRead` will start growing and the
+stats card percentage becomes meaningful.
+
 ## 3.5.0 - 2026-05-03
 
 **XP rebalance for batch usage + 1h-inactivity session prune.**

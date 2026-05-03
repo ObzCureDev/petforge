@@ -201,4 +201,95 @@ describe("Aggregator", () => {
     expect(counters.linesAdded).toBe(0);
     expect(counters.lastUpdate).toBeGreaterThan(0); // still considered an ingest
   });
+
+  describe("V3.5.1 — cache token type accepts both snake_case and camelCase", () => {
+    it("accepts cacheRead (Claude Code 2.1+ camelCase form)", () => {
+      // Two ingests so delta math kicks in (first sets baseline at 0).
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "1000",
+            attributes: [{ key: "type", value: { stringValue: "cacheRead" } }],
+          },
+        },
+      ]);
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "5000",
+            attributes: [{ key: "type", value: { stringValue: "cacheRead" } }],
+          },
+        },
+      ]);
+      expect(counters.tokensCacheRead).toBe(4000);
+    });
+
+    it("accepts cache_read (legacy snake_case form)", () => {
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "1000",
+            attributes: [{ key: "type", value: { stringValue: "cache_read" } }],
+          },
+        },
+      ]);
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "5000",
+            attributes: [{ key: "type", value: { stringValue: "cache_read" } }],
+          },
+        },
+      ]);
+      expect(counters.tokensCacheRead).toBe(4000);
+    });
+
+    it("accepts cacheCreation (Claude Code 2.1+ camelCase form)", () => {
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "100",
+            attributes: [{ key: "type", value: { stringValue: "cacheCreation" } }],
+          },
+        },
+      ]);
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "350",
+            attributes: [{ key: "type", value: { stringValue: "cacheCreation" } }],
+          },
+        },
+      ]);
+      expect(counters.tokensCacheCreation).toBe(250);
+    });
+
+    it("accepts cache_creation (legacy snake_case form)", () => {
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "100",
+            attributes: [{ key: "type", value: { stringValue: "cache_creation" } }],
+          },
+        },
+      ]);
+      agg.applyMetrics(counters, [
+        {
+          name: "claude_code.token.usage",
+          dataPoint: {
+            asInt: "350",
+            attributes: [{ key: "type", value: { stringValue: "cache_creation" } }],
+          },
+        },
+      ]);
+      expect(counters.tokensCacheCreation).toBe(250);
+    });
+  });
 });

@@ -67,9 +67,13 @@ export class Aggregator {
         } else if (type === "output") {
           counters.tokensOut += delta;
           if (model) addModel(counters, model, "tokensOut", delta);
-        } else if (type === "cache_read") {
+        } else if (type === "cache_read" || type === "cacheRead") {
+          // Claude Code 2.1+ emits the camelCase form. Earlier docs/builds
+          // showed snake_case. Accept both — under-counting cache here
+          // silently zeroed the stats card and locked the cache_*
+          // achievements behind a never-rising volume.
           counters.tokensCacheRead += delta;
-        } else if (type === "cache_creation") {
+        } else if (type === "cache_creation" || type === "cacheCreation") {
           counters.tokensCacheCreation += delta;
         }
         break;
