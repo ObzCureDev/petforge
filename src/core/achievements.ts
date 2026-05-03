@@ -560,6 +560,79 @@ export function checkAchievementsForEvent(
   return newlyUnlocked;
 }
 
+// ---------- Backfill ----------
+
+/**
+ * Re-evaluate every non-OTel achievement against current state and unlock
+ * any whose threshold is already met. Use to recover from prior bugs where
+ * a hook did not fire the relevant check (e.g. pre-V3.2 marathon only ran
+ * on session_end, pre-V3.2 streak only ran on session_start).
+ *
+ * OTel-gated achievements have side conditions (cache ratio, frugal
+ * cost ceiling) and live in `checkOtelAchievements` — call that separately.
+ *
+ * Mutates state in place. Returns newly-unlocked IDs. Does NOT recompute
+ * level/phase — the caller is responsible.
+ */
+export function backfillEarnedAchievements(state: State, now: number): AchievementId[] {
+  const newly: AchievementId[] = [];
+  const tryUnlock = (id: AchievementId, condition: boolean): void => {
+    if (condition && !isUnlocked(state, id) && unlockAchievement(state, id)) {
+      newly.push(id);
+    }
+  };
+
+  // Phase ladder
+  const lvl = state.progress.level;
+  tryUnlock("hatch_egg", lvl >= 1);
+  tryUnlock("hatch_hatchling", lvl >= 5);
+  tryUnlock("hatch_junior", lvl >= 20);
+  tryUnlock("hatch_adult", lvl >= 50);
+  tryUnlock("hatch_elder", lvl >= 80);
+  tryUnlock("hatch_mythic", lvl >= 100);
+
+  // Streak
+  const d = state.counters.streakDays;
+  tryUnlock("streak_3d", d >= 3);
+  tryUnlock("streak_7d", d >= 7);
+  tryUnlock("streak_30d", d >= 30);
+  tryUnlock("streak_100d", d >= 100);
+
+  // Tool total
+  const t = state.counters.toolUseTotal;
+  tryUnlock("tool_5k", t >= 5_000);
+  tryUnlock("tool_25k", t >= 25_000);
+  tryUnlock("tool_100k", t >= 100_000);
+
+  // Night events
+  const n = state.counters.nightOwlEvents;
+  tryUnlock("night_200", n >= 200);
+  tryUnlock("night_1k", n >= 1_000);
+  tryUnlock("night_5k", n >= 5_000);
+
+  // Marathon, polyglot, refactor — max across active sessions.
+  const sessions = Object.values(state.counters.activeSessions);
+  let maxDuration = 0;
+  let maxExt = 0;
+  let maxToolPerSession = 0;
+  for (const s of sessions) {
+    if (s.startTs && now - s.startTs > maxDuration) maxDuration = now - s.startTs;
+    if (s.fileExtensions.length > maxExt) maxExt = s.fileExtensions.length;
+    if (s.toolUseCount > maxToolPerSession) maxToolPerSession = s.toolUseCount;
+  }
+  tryUnlock("marathon_4h", maxDuration > 4 * 60 * 60 * 1000);
+  tryUnlock("marathon_12h", maxDuration > 12 * 60 * 60 * 1000);
+  tryUnlock("marathon_24h", maxDuration > 24 * 60 * 60 * 1000);
+  tryUnlock("polyglot_5", maxExt >= 5);
+  tryUnlock("polyglot_8", maxExt >= 8);
+  tryUnlock("polyglot_12", maxExt >= 12);
+  tryUnlock("refactor_100", maxToolPerSession >= 100);
+  tryUnlock("refactor_250", maxToolPerSession >= 250);
+  tryUnlock("refactor_500", maxToolPerSession >= 500);
+
+  return newly;
+}
+
 // ---------- Night-owl helper ----------
 
 /**

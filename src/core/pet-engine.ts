@@ -1,20 +1,25 @@
 /**
  * Pet engine — deterministic pet generator.
  *
- * Spec §7. The pet is fully determined by the SHA-256 of
+ * Spec V3. The pet is fully determined by the SHA-256 of
  * `username + hostname`, so a given user/machine pair always produces the
- * same pet. Bytes of the digest drive species/rarity/shiny/stats.
+ * same pet. Bytes of the digest drive rarity/species/shiny/stats.
  *
  * Byte layout:
- *   bytes[0] → species (mod 5)
+ *   bytes[0] → species index (mod bucket size, after rarity is rolled)
  *   bytes[1] → rarity (scaled to [0,1] via /255)
  *   bytes[2] → shiny (true if < 3, ~1.17%)
- *   bytes[3..7] → stats (focus/grit/flow/craft/spark, each mod 101)
+ *   bytes[3..7] → stats (debugging/patience/chaos/wisdom/snark, each mod 101)
+ *
+ * Species and rarity are coupled: each species has a fixed rarity tier
+ * (Octopus is always Uncommon, Dragon always Legendary, etc.) matching
+ * Buddy's design. `pickRarity` rolls the tier; `pickSpecies` selects from
+ * the matching `SPECIES_BY_RARITY` bucket.
  */
 
 import crypto from "node:crypto";
 import os from "node:os";
-import { type Pet, type PetStats, type Rarity, SPECIES, type Species } from "./schema.js";
+import { type Pet, type PetStats, type Rarity, SPECIES_BY_RARITY, type Species } from "./schema.js";
 
 /** SHA-256 of `username + hostname`, hex-encoded. */
 export function computeSeed(username: string, hostname: string): string {
@@ -32,13 +37,13 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
-/** Pick one of 5 species evenly from a single byte. */
-export function pickSpecies(byte: number): Species {
-  const idx = byte % SPECIES.length;
-  const species = SPECIES[idx];
+/** Pick a species from the rarity bucket using `byte` mod bucket size. */
+export function pickSpecies(byte: number, rarity: Rarity): Species {
+  const bucket = SPECIES_BY_RARITY[rarity];
+  const idx = byte % bucket.length;
+  const species = bucket[idx];
   if (species === undefined) {
-    // Impossible: idx ∈ [0, SPECIES.length-1]. Satisfies noUncheckedIndexedAccess.
-    throw new Error(`pickSpecies: invalid index ${idx}`);
+    throw new Error(`pickSpecies: invalid index ${idx} for rarity ${rarity}`);
   }
   return species;
 }
@@ -69,11 +74,11 @@ export function pickShiny(byte: number): boolean {
 /** Derive the 5 stats from `bytes[3..7]`, each in [0, 100]. */
 export function deriveStats(bytes: Uint8Array): PetStats {
   return {
-    focus: (bytes[3] ?? 0) % 101,
-    grit: (bytes[4] ?? 0) % 101,
-    flow: (bytes[5] ?? 0) % 101,
-    craft: (bytes[6] ?? 0) % 101,
-    spark: (bytes[7] ?? 0) % 101,
+    debugging: (bytes[3] ?? 0) % 101,
+    patience: (bytes[4] ?? 0) % 101,
+    chaos: (bytes[5] ?? 0) % 101,
+    wisdom: (bytes[6] ?? 0) % 101,
+    snark: (bytes[7] ?? 0) % 101,
   };
 }
 
@@ -97,9 +102,11 @@ export function generatePet(opts: GeneratePetOptions = {}): Pet {
   const rarityByte = bytes[1] ?? 0;
   const shinyByte = bytes[2] ?? 0;
 
+  const rarity = pickRarity(rarityByte / 255);
+
   return {
-    species: pickSpecies(speciesByte),
-    rarity: pickRarity(rarityByte / 255),
+    species: pickSpecies(speciesByte, rarity),
+    rarity,
     shiny: pickShiny(shinyByte),
     stats: deriveStats(bytes),
     seed,

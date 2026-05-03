@@ -20,6 +20,13 @@ export interface PetRendererProps {
   frameIndex: number;
   /** Optional override for the base frame (e.g. a Buddy stdout visual). */
   externalFrame?: string;
+  /**
+   * Optional override for the species used to look up frames. Used by the
+   * Buddy import flow: when the imported card's species matches a PetForge
+   * species, we render OUR animated frames for that species instead of the
+   * pet's seeded species.
+   */
+  speciesOverride?: Pet["species"];
 }
 
 export function PetRenderer({
@@ -27,8 +34,10 @@ export function PetRenderer({
   phase,
   frameIndex,
   externalFrame,
+  speciesOverride,
 }: PetRendererProps): React.ReactElement {
-  const frames = SPECIES_FRAMES[pet.species][phase];
+  const species = speciesOverride ?? pet.species;
+  const frames = SPECIES_FRAMES[species][phase];
   const idx = frames.length > 0 ? frameIndex % frames.length : 0;
   const base = externalFrame ?? frames[idx] ?? "";
   const styled = applyAllEffects(pet, base, phase, frameIndex);

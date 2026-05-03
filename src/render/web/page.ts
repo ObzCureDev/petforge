@@ -491,6 +491,7 @@ const CLIENT_JS = `
   function getStatus(id, state) {
     if (state.achievements.unlocked.indexOf(id) !== -1) return "completed";
     var p = achievementProgress(id, state);
+    if (p.target > 0 && p.current >= p.target) return "completed";
     if (p.target > 0 && p.current > 0 && p.current < p.target) return "in-progress";
     return "locked";
   }

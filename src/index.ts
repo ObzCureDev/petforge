@@ -45,11 +45,13 @@ async function main(): Promise<number> {
     console.log("  buddy [on|off|auto]");
     console.log("              Show or set Buddy integration mode");
     console.log("  serve       Stream the pet over HTTP for browser/phone viewing");
-    console.log("              (--port=7878 --lan --token=XXX)");
+    console.log("              (--port=7878 --lan --host=IP --token=XXX)");
     console.log("  collect     Run the OTLP collector (foreground daemon, port 7879)");
     console.log("              (--port=N --forward=URL)");
     console.log("  up          Start collect + serve in one process (recommended)");
-    console.log("              (--port=N --collect-port=N --lan --token=XXX --forward=URL)");
+    console.log(
+      "              (--port=N --collect-port=N --lan --host=IP --token=XXX --forward=URL)",
+    );
     console.log("  hook        Internal: process a Claude Code hook event from stdin");
     console.log("  --version   Show version");
     return 0;

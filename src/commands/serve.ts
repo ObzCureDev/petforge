@@ -1,5 +1,5 @@
 /**
- * `petforge serve [--port=N] [--lan] [--token=XXX]`
+ * `petforge serve [--port=N] [--lan] [--host=IP] [--token=XXX]`
  *
  * Starts a local HTTP server that:
  *  - serves a self-contained mobile-friendly HTML page at `/`
@@ -12,6 +12,9 @@
  * Security:
  *  - Default binds to 127.0.0.1 (loopback only).
  *  - `--lan` exposes on 0.0.0.0 for same-Wi-Fi phone access.
+ *  - `--host=IP` (with `--lan`) overrides the IP printed in the "Phone access"
+ *    line. Useful when auto-detect picks the wrong interface (Hyper-V, Docker,
+ *    Tailscale, VPN). Bind stays on 0.0.0.0; only the displayed URL changes.
  *  - Optional `--token=XXX` shared secret guards every endpoint.
  *  - Defense-in-depth headers (`X-Content-Type-Options: nosniff`,
  *    `Referrer-Policy: no-referrer`).
@@ -25,12 +28,27 @@ import os from "node:os";
 import { STATE_FILE } from "../core/paths.js";
 import type { State } from "../core/schema.js";
 import { readState, StateCorruptError, StateNotFoundError } from "../core/state.js";
-import { renderPage } from "../render/web/page.js";
+import {
+  ICON_JPEG_BUFFER,
+  ICON_JPEG_TYPE,
+  ICON_PNG_BUFFER,
+  ICON_PNG_TYPE,
+  MANIFEST_JSON,
+  renderPage,
+} from "../render/web/page.js";
 
 export interface ServeOptions {
   port?: number;
   lan?: boolean;
   token?: string;
+  /**
+   * Override the IP/hostname printed in the "Phone access" line and in the
+   * returned `url`. Only meaningful with `lan: true`. Bind address is unchanged
+   * (still 0.0.0.0). Use when `localIp()` picks a virtual interface that the
+   * phone cannot reach, or when you want to advertise a specific path
+   * (Tailscale, mDNS, custom DNS).
+   */
+  host?: string;
 }
 
 export interface ServeHandle {
@@ -112,6 +130,36 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
       });
       return;
     }
+    if (url.pathname === "/manifest.webmanifest" || url.pathname === "/manifest.json") {
+      res.writeHead(200, {
+        "Content-Type": "application/manifest+json; charset=utf-8",
+        "Cache-Control": "no-cache",
+      });
+      res.end(MANIFEST_JSON);
+      return;
+    }
+    if (
+      url.pathname === "/icon-512.png" ||
+      url.pathname === "/icon.png" ||
+      url.pathname === "/apple-touch-icon.png"
+    ) {
+      res.writeHead(200, {
+        "Content-Type": ICON_PNG_TYPE,
+        "Cache-Control": "public, max-age=86400",
+        "Content-Length": String(ICON_PNG_BUFFER.length),
+      });
+      res.end(ICON_PNG_BUFFER);
+      return;
+    }
+    if (url.pathname === "/icon.jpg" || url.pathname === "/icon.jpeg") {
+      res.writeHead(200, {
+        "Content-Type": ICON_JPEG_TYPE,
+        "Cache-Control": "public, max-age=86400",
+        "Content-Length": String(ICON_JPEG_BUFFER.length),
+      });
+      res.end(ICON_JPEG_BUFFER);
+      return;
+    }
 
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not found");
@@ -168,7 +216,14 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
 
   const addr = server.address();
   const actualPort = typeof addr === "object" && addr ? addr.port : requestedPort;
-  const displayHost = host === "0.0.0.0" ? (localIp() ?? "127.0.0.1") : "127.0.0.1";
+  let displayHost: string;
+  if (opts.host && host === "0.0.0.0") {
+    displayHost = opts.host;
+  } else if (host === "0.0.0.0") {
+    displayHost = localIp() ?? "127.0.0.1";
+  } else {
+    displayHost = "127.0.0.1";
+  }
   const url = `http://${displayHost}:${actualPort}`;
 
   return {
@@ -280,14 +335,14 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
 export async function serveCli(argv: string[]): Promise<number> {
   const opts = parseArgs(argv);
   if (!opts) {
-    process.stderr.write("Usage: petforge serve [--port=N] [--lan] [--token=XXX]\n");
+    process.stderr.write("Usage: petforge serve [--port=N] [--lan] [--host=IP] [--token=XXX]\n");
     return 1;
   }
   try {
     const handle = await startServer(opts);
     process.stdout.write(`PetForge server listening on ${handle.url}\n`);
     if (opts.lan) {
-      const lanIp = localIp();
+      const lanIp = opts.host ?? localIp();
       if (lanIp) {
         process.stdout.write(`Phone access (same Wi-Fi): http://${lanIp}:${handle.port}\n`);
       }
@@ -329,13 +384,28 @@ function parseArgs(argv: string[]): ServeOptions | null {
       const t = a.slice("--token=".length);
       if (t.length === 0) return null;
       opts.token = t;
+    } else if (a.startsWith("--host=")) {
+      const h = a.slice("--host=".length);
+      if (!isValidHost(h)) return null;
+      opts.host = h;
     } else if (a === "--help" || a === "-h") {
       return null;
     } else {
       return null;
     }
   }
+  // --host only makes sense with --lan: it overrides the displayed LAN IP.
+  if (opts.host && !opts.lan) return null;
   return opts;
+}
+
+// Allow IPv4, hostnames, and bracketed IPv6 ([::1]). Reject empty, whitespace,
+// protocol prefixes, and anything that would break URL composition.
+function isValidHost(h: string): boolean {
+  if (h.length === 0 || h.length > 255) return false;
+  if (/\s/.test(h)) return false;
+  if (h.includes("/")) return false;
+  return /^[a-zA-Z0-9.\-:[\]]+$/.test(h);
 }
 
 function localIp(): string | null {

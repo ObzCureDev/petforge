@@ -1,7 +1,7 @@
 /**
  * XpBar — single-line XP progress bar.
  *
- *   L<level> [████░░░░░░] xpIntoLevel / xpForNextLevel xp
+ *   LVL <level> [████░░░░░░] xpIntoLevel / xpForNextLevel XP
  *
  * At max level, displays "MAX" with cumulative XP instead.
  */
@@ -22,11 +22,11 @@ export function XpBar({ progress, width = 20 }: XpBarProps): React.ReactElement 
   const filled = Math.max(0, Math.min(width, Math.floor(p.ratio * width)));
   const bar = "█".repeat(filled) + "░".repeat(width - filled);
   const label = p.isMaxed
-    ? `MAX (${progress.xp.toLocaleString()} xp)`
-    : `${p.xpIntoLevel.toLocaleString()} / ${p.xpForNextLevel.toLocaleString()} xp`;
+    ? `MAX (${progress.xp.toLocaleString()} XP)`
+    : `${p.xpIntoLevel.toLocaleString()} / ${p.xpForNextLevel.toLocaleString()} XP`;
   return (
     <Box>
-      <Text>L{progress.level} </Text>
+      <Text>LVL {progress.level} </Text>
       <Text color="cyan">{bar}</Text>
       <Text> {label}</Text>
     </Box>

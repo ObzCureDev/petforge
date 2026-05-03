@@ -35,19 +35,34 @@ describe("pet-engine", () => {
   });
 
   describe("pickSpecies", () => {
-    it("evenly distributes across 5 species over the full byte range", () => {
-      const counts: Record<Species, number> = {
-        pixel: 0,
-        glitch: 0,
-        daemon: 0,
-        spark: 0,
-        blob: 0,
-      };
-      for (let b = 0; b < 256; b++) counts[pickSpecies(b)]++;
-      // 256 / 5 = 51.2 each — every bucket lands on 51 or 52.
+    it("picks a species from the rarity bucket", () => {
+      // common bucket has 7 entries; byte 0 -> duck, byte 1 -> goose, ...
+      expect(pickSpecies(0, "common")).toBe("duck");
+      expect(pickSpecies(1, "common")).toBe("goose");
+      expect(pickSpecies(7, "common")).toBe("duck"); // wraps via mod
+      expect(pickSpecies(0, "uncommon")).toBe("octopus");
+      expect(pickSpecies(0, "rare")).toBe("cat");
+      expect(pickSpecies(0, "epic")).toBe("ghost");
+      expect(pickSpecies(0, "legendary")).toBe("dragon");
+      expect(pickSpecies(255, "legendary")).toBe("dragon"); // single-element bucket
+    });
+
+    it("is deterministic for a given (byte, rarity)", () => {
+      for (let b = 0; b < 256; b++) {
+        expect(pickSpecies(b, "common")).toBe(pickSpecies(b, "common"));
+      }
+    });
+
+    it("evenly distributes across all 7 commons over the byte range", () => {
+      const counts: Record<string, number> = {};
+      for (let b = 0; b < 256; b++) {
+        const s = pickSpecies(b, "common");
+        counts[s] = (counts[s] ?? 0) + 1;
+      }
+      // 256 / 7 ~= 36.6 each — every bucket lands on 36 or 37.
       for (const c of Object.values(counts)) {
-        expect(c).toBeGreaterThanOrEqual(51);
-        expect(c).toBeLessThanOrEqual(52);
+        expect(c).toBeGreaterThanOrEqual(36);
+        expect(c).toBeLessThanOrEqual(37);
       }
     });
   });
@@ -110,11 +125,11 @@ describe("pet-engine", () => {
     it("uses bytes[3..7] mod 101", () => {
       const bytes = new Uint8Array([0, 0, 0, 0, 100, 101, 200, 255]);
       expect(deriveStats(bytes)).toEqual({
-        focus: 0,
-        grit: 100,
-        flow: 0,
-        craft: 99,
-        spark: 53,
+        debugging: 0,
+        patience: 100,
+        chaos: 0,
+        wisdom: 99,
+        snark: 53,
       });
     });
   });
@@ -163,8 +178,8 @@ describe("pet-engine", () => {
           a.species !== b.species ||
           a.rarity !== b.rarity ||
           a.shiny !== b.shiny ||
-          a.stats.focus !== b.stats.focus ||
-          a.stats.grit !== b.stats.grit
+          a.stats.debugging !== b.stats.debugging ||
+          a.stats.patience !== b.stats.patience
         ) {
           differs = true;
         }
@@ -175,8 +190,8 @@ describe("pet-engine", () => {
     it("works without options (uses os defaults)", () => {
       const pet = generatePet();
       expect(pet.seed).toMatch(/^[0-9a-f]{64}$/);
-      expect(pet.stats.focus).toBeGreaterThanOrEqual(0);
-      expect(pet.stats.focus).toBeLessThanOrEqual(100);
+      expect(pet.stats.debugging).toBeGreaterThanOrEqual(0);
+      expect(pet.stats.debugging).toBeLessThanOrEqual(100);
     });
   });
 });

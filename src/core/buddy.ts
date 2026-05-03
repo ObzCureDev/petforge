@@ -18,7 +18,7 @@
 
 import { spawn } from "node:child_process";
 import os from "node:os";
-import type { State } from "./schema.js";
+import { SPECIES, type Species, type State } from "./schema.js";
 
 export interface BuddyDetectionResult {
   detected: boolean;
@@ -40,6 +40,25 @@ export function pickBuddyFrame(state: State): string | undefined {
   const cache = state.buddy.cardCache;
   if (cache && cache.length > 0) return cache;
   return undefined;
+}
+
+/**
+ * If buddy is ON, parse the imported card's species and return it iff it
+ * matches a PetForge species in the V3 roster. Otherwise undefined → caller
+ * falls back to `state.pet.species`.
+ *
+ * This is the V3 import behavior: an imported Buddy card drives our animated
+ * frames (we never display the static card image). The card is purely a
+ * data source for { species, name, rarity, stats }.
+ */
+export function pickBuddySpecies(state: State): Species | undefined {
+  if (state.buddy.userToggle !== "on") return undefined;
+  const cache = state.buddy.cardCache;
+  if (!cache || cache.length === 0) return undefined;
+  const parsed = parseBuddyCard(cache);
+  if (!parsed.species) return undefined;
+  const lc = parsed.species.toLowerCase();
+  return (SPECIES as readonly string[]).includes(lc) ? (lc as Species) : undefined;
 }
 
 export interface BuddyStat {

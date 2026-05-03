@@ -19,6 +19,7 @@
  */
 
 import {
+  backfillEarnedAchievements,
   checkAchievementsForEvent,
   type HookEvent,
   isNightOwlHour,
@@ -254,6 +255,11 @@ export function applyHookEvent(
 
   // 3) Achievement checks. Must run BEFORE session_end deletion below.
   checkAchievementsForEvent(state, event, { sessionId, now });
+
+  // 3b) Backfill any thresholds already crossed but never unlocked by a
+  //     prior hook (e.g. legacy state from before a check was added). Idempotent:
+  //     once unlocked, subsequent runs are no-ops.
+  backfillEarnedAchievements(state, now);
 
   // Achievement XP can itself cross level boundaries — recompute again so
   // the persisted level/phase reflects unlocked-achievement XP, and so a

@@ -10,15 +10,16 @@
  *     species (e.g. "DAEMON"), and the Buddy's rarity in place of the
  *     PetForge-generated rarity.
  *   - When >= 3 stat lines are parsed from the card, the right column
- *     swaps FOCUS/GRIT/FLOW/CRAFT/SPARK for the Buddy's own stats — so
- *     they don't double up against the same data already shown inside
+ *     swaps DEBUGGING/PATIENCE/CHAOS/WISDOM/SNARK for the Buddy's own stats —
+ *     so they don't double up against the same data already shown inside
  *     the imported visual.
  */
 
 import { Box, Text } from "ink";
 import type React from "react";
-import { parseBuddyCard, pickBuddyFrame, stripBuddyStatLines } from "../../core/buddy.js";
+import { parseBuddyCard, pickBuddySpecies } from "../../core/buddy.js";
 import type { State } from "../../core/schema.js";
+import { rarityColor } from "../rarity-color.js";
 import { AchievementGrid } from "./AchievementGrid.js";
 import { ActivityBlock } from "./ActivityBlock.js";
 import { PetRenderer } from "./PetRenderer.js";
@@ -33,20 +34,20 @@ export interface CardViewProps {
 
 export function CardView({ state, frameIndex = 0 }: CardViewProps): React.ReactElement {
   const { pet, progress, achievements } = state;
-  const rawFrame = pickBuddyFrame(state);
-  const buddy = rawFrame ? parseBuddyCard(rawFrame) : undefined;
+  // V3 buddy import: extract { species, name, rarity, stats } from the card
+  // and drive OUR animated frames. The static card image is never displayed.
+  const buddySpecies = pickBuddySpecies(state);
+  const cache =
+    state.buddy.userToggle === "on" && state.buddy.cardCache ? state.buddy.cardCache : undefined;
+  const buddy = cache ? parseBuddyCard(cache) : undefined;
 
-  const headerName = buddy?.name?.toUpperCase() ?? pet.species.toUpperCase();
+  const headerName = buddy?.name?.toUpperCase() ?? (buddySpecies ?? pet.species).toUpperCase();
   const headerRarity = buddy?.rarity ?? pet.rarity;
 
   const useBuddyStats = (buddy?.stats.length ?? 0) >= 3;
   const buddyNamePad = useBuddyStats
     ? Math.max(...(buddy?.stats.map((s) => s.name.length) ?? [0])) + 1
     : 7;
-  // When stats are being shown in the right panel, strip them from the
-  // imported visual so they don't appear twice.
-  const externalFrame =
-    rawFrame !== undefined && useBuddyStats ? stripBuddyStatLines(rawFrame) : rawFrame;
 
   return (
     <Box flexDirection="column">
@@ -56,13 +57,13 @@ export function CardView({ state, frameIndex = 0 }: CardViewProps): React.ReactE
             pet={pet}
             phase={progress.phase}
             frameIndex={frameIndex}
-            externalFrame={externalFrame}
+            speciesOverride={buddySpecies}
           />
           <Text>
-            {headerName} · {headerRarity}
+            {headerName} · <Text color={rarityColor(headerRarity)}>{headerRarity}</Text> ·{" "}
+            {progress.phase}
             {pet.shiny ? " ✨ shiny" : ""}
           </Text>
-          <Text dimColor>Phase: {progress.phase}</Text>
           <XpBar progress={progress} />
         </Box>
         <Box flexDirection="column">
@@ -73,11 +74,11 @@ export function CardView({ state, frameIndex = 0 }: CardViewProps): React.ReactE
             ))
           ) : (
             <>
-              <StatBar name="FOCUS" value={pet.stats.focus} />
-              <StatBar name="GRIT" value={pet.stats.grit} />
-              <StatBar name="FLOW" value={pet.stats.flow} />
-              <StatBar name="CRAFT" value={pet.stats.craft} />
-              <StatBar name="SPARK" value={pet.stats.spark} />
+              <StatBar name="DEBUGGING" value={pet.stats.debugging} />
+              <StatBar name="PATIENCE" value={pet.stats.patience} />
+              <StatBar name="CHAOS" value={pet.stats.chaos} />
+              <StatBar name="WISDOM" value={pet.stats.wisdom} />
+              <StatBar name="SNARK" value={pet.stats.snark} />
             </>
           )}
           <Text> </Text>

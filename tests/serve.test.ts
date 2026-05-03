@@ -88,7 +88,7 @@ describe("petforge serve", () => {
       const res = await fetch(`${handle.url}/state.json`);
       expect(res.status).toBe(200);
       const body = (await res.json()) as { schemaVersion: number; pet: { species: string } };
-      expect(body.schemaVersion).toBe(1);
+      expect(body.schemaVersion).toBe(2);
       expect(body.pet.species).toBeTypeOf("string");
     } finally {
       await handle.close();
@@ -252,6 +252,32 @@ describe("petforge serve", () => {
     const handle = await startServer({ port: 0 });
     try {
       expect(handle.port).toBeGreaterThan(0);
+      expect(handle.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("--host override shapes the displayed URL when --lan is set", async () => {
+    const { startServer } = await loadServe();
+    const handle = await startServer({ port: 0, lan: true, host: "10.20.30.40" });
+    try {
+      // Bind is still 0.0.0.0, but the printed URL should reflect the override.
+      expect(handle.url).toBe(`http://10.20.30.40:${handle.port}`);
+      // And the server is still reachable locally on the actual port.
+      const res = await fetch(`http://127.0.0.1:${handle.port}/`);
+      expect(res.status).toBe(200);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("--host is ignored when --lan is not set (loopback-only mode)", async () => {
+    const { startServer } = await loadServe();
+    // Caller passes host without lan: bind stays loopback, displayed URL stays
+    // 127.0.0.1 because there's no LAN exposure to advertise.
+    const handle = await startServer({ port: 0, host: "10.20.30.40" });
+    try {
       expect(handle.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     } finally {
       await handle.close();

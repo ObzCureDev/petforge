@@ -31,17 +31,18 @@ If you have a **Claude Buddy** you like, you can import its ASCII visual once an
 ## Highlights
 
 - 🥚 **6 evolution phases** — Egg → Hatchling → Junior → Adult → Elder → Mythic
-- 🏆 **46 achievements** — bronze/silver/gold/platinum medal tiers across 13 families + a 6-step hatch phase ladder
-- 🐣 **5 deterministic species** — Pixel, Glitch, Daemon, Spark, Blob
-- ✨ **5 rarities + shiny** — same odds inspired by classic RPGs
+- 🏆 **46 achievements** organised into **7 collapsible categories** with a "Near completion" auto-group and a top **Next Goals** card — bronze/silver/gold/platinum medal tiers across 13 families + a 6-step hatch phase ladder
+- 🐾 **18 deterministic species** across 5 rarity tiers — duck, goose, blob, turtle, snail, mushroom, chonk, octopus, penguin, cactus, rabbit, cat, owl, capybara, robot, ghost, axolotl, dragon
+- ✨ **5 rarities + shiny** — Common 60% / Uncommon 25% / Rare 10% / Epic 4% / Legendary 1% (Dragon always Legendary, Octopus always Uncommon, etc.)
 - 🪝 **5 official Claude Code hooks** — zero polling, sub-50ms updates
 - 📺 **Live watch mode** — terminal animation + counters refreshed every 500ms
-- 📱 **Stream to your phone** — local web view via SSE on your LAN
+- 📱 **PWA mobile** — installable web view (manifest + 512×512 icon), live SSE updates on your LAN
+- 🃏 **4-card web layout** — PET (with derived Mood / Trait / Next evolution), CURRENT RUN (split into RUN + DEV lines), STATS, ACHIEVEMENTS
 - 📊 **OpenTelemetry collector** — opt-in, ingests Claude Code metrics, fans out to Datadog/Honeycomb
 - 🎭 **Buddy import** — pin your favourite Claude Buddy ASCII as your pet, with parsed name/rarity/stats
 - 🚀 **One-command up** — `petforge up --lan` starts the OTel collector AND the web view together
 - 🔒 **100% local** — zero telemetry, zero phone-home, zero account
-- 🧰 **Cross-platform** — Windows, macOS, Linux
+- 🧰 **Cross-platform** — Windows, macOS, Linux (Windows-specific EPERM/EBUSY retry on state writes)
 
 ---
 
@@ -123,7 +124,7 @@ petforge buddy import --from=~/.petforge/buddy-card.txt
 # Buddy imported: 26 lines, 1065 bytes. Toggle: on.
 ```
 
-PetForge now displays your Buddy in `card` / `watch` / `serve`. Name, rarity, and stats are auto-parsed from the card and replace `DAEMON · common` and `FOCUS/GRIT/FLOW/CRAFT/SPARK` with `HUDDLE · rare` and your Buddy's own stats (DEBUGGING, PATIENCE, etc).
+PetForge now displays your Buddy in `card` / `watch` / `serve`. Name, rarity, and stats are auto-parsed from the card and replace your default pet name + rarity + the five derived stats (DEBUGGING, PATIENCE, CHAOS, WISDOM, SNARK) with the Buddy's own (e.g. `HUDDLE · rare` + DEBUGGING / PATIENCE / TENACITY / FLOW).
 
 XP / levels / achievements / activity counters stay PetForge-driven.
 
@@ -183,17 +184,19 @@ The hatch phase ladder fires one milestone per phase boundary: `hatch_egg` at th
 
 Your pet is **deterministic**: it's generated from `sha256(username + hostname)`. Same machine = same pet, always. Different machine = different pet.
 
-| Species | Theme |
-|---|---|
-| Pixel | 8-bit cube creature |
-| Glitch | Corrupted pixel |
-| Daemon | Process pun |
-| Spark | Energy creature |
-| Blob | Amorphous gel |
+**Rarity is rolled first**, then the species is picked from the bucket matching that rarity. Each species belongs to exactly one tier — Octopus is always Uncommon, Cat is always Rare, Dragon is always Legendary. There are no surprises across machines: the rarity glow always matches the species table below.
 
-Rarity distribution: Common 60% · Uncommon 25% · Rare 10% · Epic 4% · Legendary 1%. Shiny: 1% independent rainbow overlay.
+| Rarity | Odds | Species |
+|---|---|---|
+| Common | 60% | duck · goose · blob · turtle · snail · mushroom · chonk |
+| Uncommon | 25% | octopus · penguin · cactus · rabbit |
+| Rare | 10% | cat · owl · capybara · robot |
+| Epic | 4% | ghost · axolotl |
+| Legendary | 1% | dragon |
 
-Each pet ships with 5 base stats (FOCUS, GRIT, FLOW, CRAFT, SPARK) derived from the same seed. Stats are flavor — they don't affect XP gain.
+Shiny: 1% independent rainbow overlay (any species, any rarity).
+
+Each pet ships with 5 base stats — **debugging, patience, chaos, wisdom, snark** — derived from the same seed (each in `[0, 100]`). Stats are flavor: they don't affect XP gain. When you import a Buddy, its own stat names (e.g. DEBUGGING, PATIENCE, TENACITY, FLOW) replace these on the right-hand panel.
 
 ---
 
@@ -218,6 +221,26 @@ Each pet ships with 5 base stats (FOCUS, GRIT, FLOW, CRAFT, SPARK) derived from 
 
 Hatch ladder XP: 50 (egg) / 500 (hatchling) / 2K (junior) / 5K (adult) /
 10K (elder) / 25K (mythic).
+
+### Web view layout (V3.3+)
+
+The achievements panel in `petforge serve` is now grouped into **7 collapsible categories** matching the families above:
+
+- **Evolution** (hatch ladder), **Streak**, **Activity** (tool, refactor, polyglot),
+  **Time** (marathon, night), **Coding** (code lines, tokens, cache),
+  **Economy** (frugal, big spender), **Collaboration** (pr, picky)
+
+Each category header shows a status symbol (✅ all complete · ◐ in-progress · ○ none yet) plus an `unlocked / total` count. Click to expand.
+
+A virtual **"Near completion"** group appears at the very top when any in-progress achievement has crossed 70 % of its target (top 5, sorted by ratio descending). It hides itself entirely when there's nothing close.
+
+Above the achievements panel, the **NEXT GOALS** card highlights the top 5 in-progress achievements (≥ 50 % first, then anything below if there's room) so you can see what to chase next at a glance.
+
+Each row uses status symbols instead of bare percentages: ✅ for completed, ◐ + percentage + a thin medal-tinted progress bar for in-progress, ○ + percentage for locked. Mini bars are sized 0.25 rem high and tinted by medal color (bronze / silver / gold / platinum).
+
+### Idempotent backfill
+
+If you upgrade from an older version where some checks didn't fire (e.g. pre-V3.1 Marathon only ran on `session_end`), the next hook event will **automatically re-evaluate every threshold** and unlock anything you've already crossed. XP is awarded retroactively. The backfill is idempotent — running it again is a no-op.
 
 ---
 
@@ -252,11 +275,11 @@ When the imported card looks like Anthropic's `/buddy card` output, PetForge aut
 
 | Field | Example | Used for |
 |---|---|---|
-| **Name** (Title-Case word) | `Huddle` | Replaces `DAEMON` in the card header |
+| **Name** (Title-Case word) | `Huddle` | Replaces the default pet name in the card header |
 | **Species** (UPPERCASE) | `OCTOPUS` | (currently informational) |
-| **Rarity** word | `RARE` | Replaces `common` in the card header + the rarity glow |
+| **Rarity** word | `RARE` | Replaces `common` in the card header + drives the rarity glow |
 | **Stars** count | `★★★` | Visual indicator |
-| **Stat lines** (`NAME ████ N`) | `DEBUGGING 75` | Replaces FOCUS/GRIT/etc on the right |
+| **Stat lines** (`NAME ████ N`) | `DEBUGGING 75` | Replaces the default 5 derived stats (debugging / patience / chaos / wisdom / snark) on the right |
 
 When ≥ 3 stat lines parse, PetForge **auto-strips them from the rendered visual** so they don't appear twice (once in the box on the left, once in the right-hand stats panel). The cardCache on disk stays intact — the strip is render-time only.
 
@@ -280,7 +303,14 @@ petforge serve --lan
 # Phone access (same Wi-Fi): http://192.168.1.42:7878
 ```
 
-Open the LAN URL on your phone, add to home screen for an "app" feel. The web view streams live: every hook event your machine receives is reflected on your phone within ~50ms via Server-Sent Events (auto-reconnects on disconnect).
+Open the LAN URL on your phone, add to home screen — PetForge ships a **proper PWA manifest** (`manifest.webmanifest` + 512×512 PNG icon), so iOS/Android treat the page like a native app: home-screen icon, splash, full-screen launch, theme color. The web view streams live: every hook event your machine receives is reflected on your phone within ~50 ms via Server-Sent Events (auto-reconnects on disconnect).
+
+The page is laid out as **4 distinct cards** since V3.3:
+
+- **PET** — ASCII pet + display name + rarity/phase/level sub-line + XP bar + 3 derived rows (Mood: Night Owl > Coding > Resting > Focused; Trait: top stat + " Aura"; Next evolution: % toward next phase boundary)
+- **CURRENT RUN** — RUN line (sessions / streak / prompts / tools) + DEV line (lines / tokens / cost / cache hit %, hidden cleanly when no OTel data)
+- **STATS** — 3-column grid (name / value / bar) for the 5 derived stats
+- **NEXT GOALS** + **ACHIEVEMENTS** — see [Web view layout](#web-view-layout-v33) above
 
 By default the server binds to `127.0.0.1` (loopback only). `--lan` exposes it on `0.0.0.0`. For shared networks, `--token=XXX` requires a shared secret in the URL (`?token=XXX`) or via a `Bearer` header.
 
@@ -292,7 +322,7 @@ The server is **read-only** — it streams state and never mutates it.
 
 ## OpenTelemetry integration (V2.0+)
 
-Claude Code emits rich metrics over OpenTelemetry — tokens, cost, lines added/removed, accept/reject decisions, commits, PRs. PetForge ingests these to unlock 8 OTel-gated achievements and a richer activity line.
+Claude Code emits rich metrics over OpenTelemetry — tokens, cost, lines added/removed, accept/reject decisions, commits, PRs. PetForge ingests these to unlock **21 OTel-gated achievements** (across 7 families: code lines, tokens, cache, frugal, big spender, PR, picky) and a richer activity line.
 
 ### Setup
 
@@ -456,27 +486,29 @@ PetForge is **fully local**:
 git clone https://github.com/ObzCureDev/petforge.git
 cd petforge
 npm install
-npm run dev          # tsup watch mode
-npm test             # vitest (290+ tests across 19 files)
+npm test             # vitest — 313 tests across 21 files
 npm run check        # biome lint + format check
 npm run check:fix    # biome auto-fix
 npm run typecheck    # tsc --noEmit
-npm run build        # tsup production build
+npm run build        # tsup production build (single ESM bundle ~216 KB)
 ```
 
-See [`CHANGELOG.md`](./CHANGELOG.md) for release notes and [`docs/superpowers/specs/`](./docs/superpowers/specs/) for design specs.
+The codebase is ~9.6 KLoC TypeScript, strict mode, 0 type errors, 1 explicit `any`. Bundling is a single-file ESM via tsup; the published artifact is `dist/index.js`.
+
+See [`CHANGELOG.md`](./CHANGELOG.md) for release notes (V1.0 → V3.4 documented) and [`docs/superpowers/specs/`](./docs/superpowers/specs/) for design specs (V1, V2 OTel, V3.2 medals, V3.3 visual restructure, V3.4 achievement organization).
 
 ---
 
 ## Roadmap
 
-**V2.x ideas** (not committed):
-- `events.ndjson` append-only event store + per-day heatmap in `serve`
-- Cinematic milestones (level-up celebration animations) + WISDOM stat
-- VS Code / Antigravity extension panel
-- Skin shop & buddy variants
-- Multi-device cloud sync (opt-in)
-- More species & evolution branches
+**V3.5+ ideas** (not committed):
+- Achievement filter tabs (All / In-progress / Locked / Completed) above the categories
+- `events.ndjson` append-only event store + per-day heatmap card in `serve`
+- Cinematic milestones (level-up + medal-tier celebration animations) on the web view
+- VS Code / Antigravity extension panel mirroring the 4-card layout
+- Skin shop & extra buddy variants
+- Opt-in multi-device sync (encrypted state diff)
+- More species (frog, fox, raven) and a hardcore-tier achievement layer above platinum
 
 ---
 

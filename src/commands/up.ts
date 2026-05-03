@@ -1,5 +1,5 @@
 /**
- * `petforge up [--lan] [--port=N] [--collect-port=N] [--token=XXX] [--forward=URL]`
+ * `petforge up [--lan] [--host=IP] [--port=N] [--collect-port=N] [--token=XXX] [--forward=URL]`
  *
  * One-shot launcher: starts both the OTel collector and the web view in the
  * same process, with prefixed output and a single Ctrl+C shutdown.
@@ -7,6 +7,9 @@
  *   --port=N           web view port (default 7878)
  *   --collect-port=N   OTel collector port (default 7879)
  *   --lan              expose web view on 0.0.0.0 (collector stays loopback)
+ *   --host=IP          (with --lan) override the IP printed in the "Phone
+ *                      access" line. Use when auto-detect picks the wrong
+ *                      interface (Hyper-V, Docker, Tailscale, VPN).
  *   --token=XXX        bearer token for web view
  *   --forward=URL      fan-out OTel to a downstream endpoint
  *
@@ -22,6 +25,7 @@ interface UpOptions {
   port?: number;
   collectPort?: number;
   lan?: boolean;
+  host?: string;
   token?: string;
   forward?: string;
 }
@@ -30,7 +34,7 @@ export async function upCli(argv: string[]): Promise<number> {
   const opts = parseArgs(argv);
   if (!opts) {
     process.stderr.write(
-      "Usage: petforge up [--port=N] [--collect-port=N] [--lan] [--token=XXX] [--forward=URL]\n",
+      "Usage: petforge up [--port=N] [--collect-port=N] [--lan] [--host=IP] [--token=XXX] [--forward=URL]\n",
     );
     return 1;
   }
@@ -66,11 +70,12 @@ export async function upCli(argv: string[]): Promise<number> {
     server = await startServer({
       port: opts.port,
       lan: opts.lan,
+      host: opts.host,
       token: opts.token,
     });
     process.stdout.write(`[serve]   listening on ${server.url}\n`);
     if (opts.lan) {
-      const lan = lanIp();
+      const lan = opts.host ?? lanIp();
       if (lan) {
         process.stdout.write(`[serve]   phone access (same Wi-Fi): http://${lan}:${server.port}\n`);
       }
@@ -126,6 +131,10 @@ function parseArgs(argv: string[]): UpOptions | null {
       const t = a.slice("--token=".length);
       if (t.length === 0) return null;
       opts.token = t;
+    } else if (a.startsWith("--host=")) {
+      const h = a.slice("--host=".length);
+      if (!isValidHost(h)) return null;
+      opts.host = h;
     } else if (a.startsWith("--forward=")) {
       const f = a.slice("--forward=".length);
       if (f.length === 0) return null;
@@ -136,7 +145,15 @@ function parseArgs(argv: string[]): UpOptions | null {
       return null;
     }
   }
+  if (opts.host && !opts.lan) return null;
   return opts;
+}
+
+function isValidHost(h: string): boolean {
+  if (h.length === 0 || h.length > 255) return false;
+  if (/\s/.test(h)) return false;
+  if (h.includes("/")) return false;
+  return /^[a-zA-Z0-9.\-:[\]]+$/.test(h);
 }
 
 function lanIp(): string | null {
