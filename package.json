@@ -1,10 +1,10 @@
 {
   "name": "@mindvisionstudio/petforge",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "Local-first RPG progression layer for AI coding companions — tracks Claude Code activity through hooks and renders an evolving ASCII pet.",
   "type": "module",
   "bin": {
-    "petforge": "./dist/index.js"
+    "petforge": "dist/index.js"
   },
   "files": [
     "dist",

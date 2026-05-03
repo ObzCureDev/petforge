@@ -489,10 +489,16 @@ const CLIENT_JS = `
   }
 
   function getStatus(id, state) {
+    // Single source of truth: only the unlocked array marks an achievement
+    // as completed. Compound achievements (cache_*, frugal_*) can have
+    // current >= target on volume but still be ungated; the achievement is
+    // only completed when the engine has run all gates and pushed the id
+    // into unlocked. The next hook event runs backfillEarnedAchievements,
+    // which catches simple thresholds; OTel-gated ones get caught by the
+    // next collect tick.
     if (state.achievements.unlocked.indexOf(id) !== -1) return "completed";
     var p = achievementProgress(id, state);
-    if (p.target > 0 && p.current >= p.target) return "completed";
-    if (p.target > 0 && p.current > 0 && p.current < p.target) return "in-progress";
+    if (p.target > 0 && p.current > 0) return "in-progress";
     return "locked";
   }
 
@@ -829,7 +835,17 @@ const CLIENT_JS = `
       var status = getStatus(id, state);
       var prog = achievementProgress(id, state);
       var ratio = prog.target > 0 ? Math.min(1, prog.current / prog.target) : 0;
-      var pctStr = Math.round(ratio * 100) + "%";
+      // Only "completed" rounds to 100%. Anything in-progress or locked is
+      // floored AND capped at 99% so a near-target ratio (e.g. 999_803 /
+      // 1_000_000 = 99.9803%) doesn't render as "100%" before the unlock
+      // is actually persisted to state.achievements.unlocked.
+      var pctStr;
+      if (status === "completed") {
+        pctStr = "100%";
+      } else {
+        var rawPct = Math.floor(ratio * 100);
+        pctStr = Math.min(99, rawPct) + "%";
+      }
       var progressLabel = prog.current.toLocaleString() + " / " + prog.target.toLocaleString();
       var medal = def.medal || "";
       var medalEmoji = medal === "bronze" ? "🥉"

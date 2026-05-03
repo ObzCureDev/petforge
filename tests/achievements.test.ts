@@ -118,6 +118,30 @@ describe("achievements", () => {
       expect(newly).toContain("hatch_egg"); // also fires (level >= 1)
     });
 
+    it("hatch ladder boundaries match phaseForLevel (12/30/60/100)", () => {
+      // Regression for V3.4.2 — pre-fix the achievement thresholds were
+      // 20/50/80, which diverged from phaseForLevel's 12/30/60. A pet at
+      // level 30 displayed "Adult" but couldn't unlock hatch_adult until
+      // level 50.
+      const cases: { level: number; expected: string[]; notExpected: string[] }[] = [
+        { level: 12, expected: ["hatch_junior"], notExpected: ["hatch_adult"] },
+        { level: 29, expected: ["hatch_junior"], notExpected: ["hatch_adult"] },
+        { level: 30, expected: ["hatch_adult"], notExpected: ["hatch_elder"] },
+        { level: 59, expected: ["hatch_adult"], notExpected: ["hatch_elder"] },
+        { level: 60, expected: ["hatch_elder"], notExpected: ["hatch_mythic"] },
+      ];
+      for (const c of cases) {
+        const s = freshState();
+        s.progress.level = c.level;
+        const newly = checkAchievementsForEvent(s, "prompt", {
+          sessionId: "s1",
+          now: Date.now(),
+        });
+        for (const id of c.expected) expect(newly).toContain(id);
+        for (const id of c.notExpected) expect(newly).not.toContain(id);
+      }
+    });
+
     it("hatch_mythic fires when level >= 100 (and all earlier hatches)", () => {
       const s = freshState();
       s.progress.level = 100;

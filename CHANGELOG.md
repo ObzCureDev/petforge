@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.4.2 - 2026-05-03
+
+**Hatch ladder alignment + 100% display only when truly unlocked.**
+Two display bugs that paint achievements as further along than they
+really are.
+
+- Hatch ladder thresholds 20/50/80 -> 12/30/60 to match
+  `phaseForLevel`. The level header used to read "ADULT" at level 30
+  while the matching `hatch_adult` achievement waited until level 50;
+  same gap between Junior (display 12, ach 20) and Elder (display
+  60, ach 80). Now `phaseForLevel` and the achievement registry agree.
+  The V3.4 backfill catches existing pets whose phase boundary was
+  already crossed but whose achievement was never unlocked under
+  the old thresholds.
+- Percentage cap: only an entry in `state.achievements.unlocked`
+  renders as 100% / completed. Anything else is floored AND capped at
+  99%. Previously `Math.round(0.99980 * 100)` rounded 999_803 /
+  1_000_000 up to "100%" while the achievement was still ungated
+  (and `getStatus` itself treated `current >= target` as completed,
+  which gave false positives on compound achievements like
+  `cache_*` (volume + ratio) and `frugal_*` (prompts + cost
+  ceiling)).
+
+No state schema bump, no migration. Pure UX correctness fix.
+
 ## 3.4.1 - 2026-05-03
 
 **Hook timeout 1s -> 5s.** Concurrent Claude Code subprocesses (batch

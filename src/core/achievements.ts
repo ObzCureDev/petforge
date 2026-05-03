@@ -79,19 +79,19 @@ export const ACHIEVEMENTS: Readonly<Record<AchievementId, AchievementDef>> = {
     id: "hatch_junior",
     name: "Hatch · Junior",
     xp: 2_000,
-    description: "Reach level 20 - your pet matures into junior.",
+    description: "Reach level 12 - your pet matures into junior.",
   },
   hatch_adult: {
     id: "hatch_adult",
     name: "Hatch · Adult",
     xp: 5_000,
-    description: "Reach level 50 - your pet reaches adult.",
+    description: "Reach level 30 - your pet reaches adult.",
   },
   hatch_elder: {
     id: "hatch_elder",
     name: "Hatch · Elder",
     xp: 10_000,
-    description: "Reach level 80 - your pet ages into elder.",
+    description: "Reach level 60 - your pet ages into elder.",
   },
   hatch_mythic: {
     id: "hatch_mythic",
@@ -465,9 +465,9 @@ export function checkAchievementsForEvent(
     const lvl = state.progress.level;
     tryUnlock("hatch_egg", lvl >= 1);
     tryUnlock("hatch_hatchling", lvl >= 5);
-    tryUnlock("hatch_junior", lvl >= 20);
-    tryUnlock("hatch_adult", lvl >= 50);
-    tryUnlock("hatch_elder", lvl >= 80);
+    tryUnlock("hatch_junior", lvl >= 12);
+    tryUnlock("hatch_adult", lvl >= 30);
+    tryUnlock("hatch_elder", lvl >= 60);
     tryUnlock("hatch_mythic", lvl >= 100);
   };
 
@@ -582,13 +582,13 @@ export function backfillEarnedAchievements(state: State, now: number): Achieveme
     }
   };
 
-  // Phase ladder
+  // Phase ladder — must match phaseForLevel boundaries (xp.ts).
   const lvl = state.progress.level;
   tryUnlock("hatch_egg", lvl >= 1);
   tryUnlock("hatch_hatchling", lvl >= 5);
-  tryUnlock("hatch_junior", lvl >= 20);
-  tryUnlock("hatch_adult", lvl >= 50);
-  tryUnlock("hatch_elder", lvl >= 80);
+  tryUnlock("hatch_junior", lvl >= 12);
+  tryUnlock("hatch_adult", lvl >= 30);
+  tryUnlock("hatch_elder", lvl >= 60);
   tryUnlock("hatch_mythic", lvl >= 100);
 
   // Streak
