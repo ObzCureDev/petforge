@@ -94,7 +94,7 @@ export function buildPetforgeHookConfig(): Record<GroupKey, ClaudeHookGroup[]> {
           {
             type: "command",
             command: `petforge hook --event ${event}`,
-            timeout: 1,
+            timeout: 5,
           },
         ],
       },

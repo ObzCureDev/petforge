@@ -71,7 +71,7 @@ describe("runInit", () => {
       e.command.startsWith("petforge hook"),
     );
     expect(petforgeEntries).toHaveLength(1);
-    expect(petforgeEntries[0].timeout).toBe(1);
+    expect(petforgeEntries[0].timeout).toBe(5);
   });
 
   it("refuses to overwrite invalid JSON", async () => {

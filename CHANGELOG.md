@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.4.1 - 2026-05-03
+
+**Hook timeout 1s -> 5s.** Concurrent Claude Code subprocesses (batch
+runners, parallel `claude -p` invocations, eval harnesses) caused
+`SessionEnd hook [petforge hook --event session_end] failed: Hook
+cancelled` stderr noise on every call. Root cause: the lock retry
+budget (~6 s under contention) overran Claude Code's 1 s hook timeout,
+so Claude Code killed `petforge hook` mid-acquire. Bumping the
+registered timeout to 5 s aligns with the lock retry envelope and
+silences the noise without changing PetForge's exit-code contract
+(still always 0).
+
+- `petforge init` now writes `timeout: 5` for every hook entry.
+- `petforge init` (or `petforge init --otel`) on a v3.4.0 install
+  flags the existing `timeout: 1` entries as outdated and rewrites
+  them in-place with the new value. No state migration, no schema
+  bump, no behaviour change beyond the timeout.
+- The hook itself was never the actual cause of batch failures (it
+  always returned 0); the noise was purely cosmetic. Real `claude`
+  exit-1 failures in batch runs come from API rate limits or
+  network errors, not PetForge.
+
+Run `petforge init` once after upgrading to pick up the new timeout.
+
 ## 3.4.0 - 2026-05-02
 
 **Achievement organization** - the 46-entry list reorganized into 7 collapsible categories + a virtual "Near completion" group, plus a new top-of-list NEXT GOALS card.

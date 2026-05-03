@@ -77,7 +77,7 @@ describe("claude-config", () => {
       expect(cfg.SessionEnd[0]?.hooks[0]?.command).toBe("petforge hook --event session_end");
     });
 
-    it("each entry has type=command, matcher=*, timeout=1", () => {
+    it("each entry has type=command, matcher=*, timeout=5", () => {
       const cfg = buildPetforgeHookConfig();
       for (const groupKey of Object.keys(cfg) as (keyof typeof cfg)[]) {
         const groups = cfg[groupKey];
@@ -87,7 +87,7 @@ describe("claude-config", () => {
         expect(group?.hooks).toHaveLength(1);
         const entry = group?.hooks[0];
         expect(entry?.type).toBe("command");
-        expect(entry?.timeout).toBe(1);
+        expect(entry?.timeout).toBe(5);
       }
     });
   });
@@ -140,7 +140,7 @@ describe("claude-config", () => {
       const entries = merged.hooks?.UserPromptSubmit?.flatMap((g) => g.hooks) ?? [];
       const petforgeEntries = entries.filter((e) => (e.command ?? "").startsWith("petforge hook"));
       expect(petforgeEntries).toHaveLength(1);
-      expect(petforgeEntries[0]?.timeout).toBe(1);
+      expect(petforgeEntries[0]?.timeout).toBe(5);
     });
 
     it("strips an outdated PetForge entry that lived alongside a user entry in the same group", () => {
@@ -165,7 +165,7 @@ describe("claude-config", () => {
       // Only ONE PetForge entry remains, with the new timeout.
       const petforgeEntries = entries.filter((e) => (e.command ?? "").startsWith("petforge hook"));
       expect(petforgeEntries).toHaveLength(1);
-      expect(petforgeEntries[0]?.timeout).toBe(1);
+      expect(petforgeEntries[0]?.timeout).toBe(5);
     });
 
     it("works on a null/empty starting state", () => {
@@ -267,6 +267,30 @@ describe("claude-config", () => {
         },
       };
       expect(detectOutdatedPetforgeHooks(stale)).toEqual(["UserPromptSubmit"]);
+    });
+
+    it("flags v3.4.0 timeout=1 hooks as outdated (V3.4.1 upgrade path)", () => {
+      const v340Install: ClaudeSettings = {
+        hooks: {
+          UserPromptSubmit: [
+            {
+              matcher: "*",
+              hooks: [{ type: "command", command: "petforge hook --event prompt", timeout: 1 }],
+            },
+          ],
+          PostToolUse: [
+            {
+              matcher: "*",
+              hooks: [
+                { type: "command", command: "petforge hook --event post_tool_use", timeout: 1 },
+              ],
+            },
+          ],
+        },
+      };
+      const outdated = detectOutdatedPetforgeHooks(v340Install);
+      expect(outdated).toContain("UserPromptSubmit");
+      expect(outdated).toContain("PostToolUse");
     });
   });
 

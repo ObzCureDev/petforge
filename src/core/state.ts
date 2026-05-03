@@ -250,19 +250,17 @@ export async function withStateLock<T>(
   const fd = await fs.open(LOCK_FILE, "a");
   await fd.close();
 
-  // Retry budget tuned for plausible contention: with all callers now
-  // funnelled through a single lock target (vs. the previous racy
-  // ternary that sometimes split traffic across two lock files), hooks
-  // fired in parallel — e.g. multiple Claude Code terminals on the
-  // same machine — can stack up a dozen waiters. minTimeout stays
-  // small so a freshly-released lock is picked up promptly;
-  // maxTimeout caps late retries so a starved waiter doesn't sleep
-  // for seconds while the lock is free. Stale at 5s reclaims a truly
-  // orphaned lock.
+  // Retry budget tuned to stay under the hook timeout (5 s registered in
+  // ~/.claude/settings.json since v3.4.1). Sum of waits with these
+  // params caps at ~2.4 s (13 ramp retries reaching maxTimeout, then 7
+  // flat × 200 ms), leaving headroom for the actual lock-acquire I/O.
+  // If contention exceeds that budget, the hook silently logs and exits
+  // 0 instead of being killed by Claude Code mid-acquire — the dropped
+  // event costs at most a few XP. Stale at 5 s reclaims orphaned locks.
   const release = await lockfile.lock(LOCK_FILE, {
     realpath: false,
     stale: 5000,
-    retries: { retries: 30, factor: 1.2, minTimeout: 20, maxTimeout: 200 },
+    retries: { retries: 20, factor: 1.2, minTimeout: 20, maxTimeout: 200 },
   });
 
   try {
