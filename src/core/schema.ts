@@ -179,6 +179,12 @@ export interface ActiveSession {
   toolUseCount: number;
   /** Unique extensions seen this session. */
   fileExtensions: string[];
+  /**
+   * V3.5+ — epoch ms of the most recent hook event for this session.
+   * Used by the inactivity-based prune (1h since last event). Optional
+   * for backward compatibility; pre-V3.5 sessions fall back to startTs.
+   */
+  lastEventTs?: number;
 }
 
 export interface Counters {
@@ -267,6 +273,8 @@ export const ActiveSessionSchema = z.object({
   startTs: z.number(),
   toolUseCount: z.number(),
   fileExtensions: z.array(z.string()),
+  // V3.5 additive — pre-V3.5 sessions parse without it.
+  lastEventTs: z.number().optional(),
 });
 
 export const CountersSchema = z.object({

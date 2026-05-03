@@ -33,21 +33,53 @@ import { levelForXp, phaseForLevel } from "../core/xp.js";
 /** Tool names that include a file path — used for polyglot extension tracking. */
 const FILE_PATH_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 
-const STALE_SESSION_MS = 24 * 60 * 60 * 1000;
+/**
+ * V3.5+ — inactivity threshold for pruning active sessions.
+ *
+ * Was 24h based on `startTs` (V1) — kept around long-running sessions,
+ * but also accumulated orphaned entries from short non-interactive
+ * `claude -p` invocations whose `session_end` got cancelled by hook
+ * timeouts under concurrency. Now based on `lastEventTs` (last seen
+ * activity), 1h: enough for someone to step away from a real session
+ * without losing it, short enough that batch noise dies fast.
+ *
+ * Marathon achievements (4h / 12h / 24h) still work — those rely on
+ * `now - startTs` of an *active* session, and a real coding session
+ * gets prompts/tools regularly enough to keep `lastEventTs` fresh.
+ */
+const STALE_SESSION_MS = 60 * 60 * 1000;
 
 /**
- * Remove activeSessions entries whose startTs is older than 24h.
- *
- * When `session_end` fails to fire (some Claude Code versions / forced
- * exits), activeSessions accumulates indefinitely. This bounded GC keeps
- * the state file size sane.
+ * Remove activeSessions entries that have been inactive for longer than
+ * STALE_SESSION_MS. Fallback: pre-V3.5 sessions without `lastEventTs`
+ * use `startTs` (matches the legacy semantics for them).
  */
 function pruneStaleSessions(state: State, now: number): void {
   for (const [sid, session] of Object.entries(state.counters.activeSessions)) {
-    if (now - session.startTs > STALE_SESSION_MS) {
+    const ts = session.lastEventTs ?? session.startTs;
+    if (now - ts > STALE_SESSION_MS) {
       delete state.counters.activeSessions[sid];
     }
   }
+}
+
+/**
+ * V3.5+ — session_end XP scaling by duration.
+ *
+ * Pre-V3.5 every `session_end` awarded +50 XP unconditionally, which
+ * inflated XP for batch usage (`claude -p`, eval harnesses) where a
+ * 5-second non-interactive invocation looks indistinguishable from an
+ * 8-hour focused coding session.
+ *
+ *   < 1 min  → 0  (batch noise)
+ *   < 5 min  → 5  (legitimate but short)
+ *  >= 5 min  → 50 (real session, original behavior)
+ */
+function sessionEndXp(durationMs: number | null): number {
+  if (durationMs === null) return 0;
+  if (durationMs < 60_000) return 0;
+  if (durationMs < 300_000) return 5;
+  return 50;
 }
 
 const HOOK_EVENTS: ReadonlySet<HookEvent> = new Set<HookEvent>([
@@ -184,13 +216,12 @@ export function applyHookEvent(
       // Claude Code versions / IDE integrations skip it). This lets per-session
       // achievements (Polyglot, Refactor Master) eventually unlock from
       // post_tool_use events that follow.
-      if (!state.counters.activeSessions[sessionId]) {
-        state.counters.activeSessions[sessionId] = {
-          startTs: now,
-          toolUseCount: 0,
-          fileExtensions: [],
-        };
+      let session = state.counters.activeSessions[sessionId];
+      if (!session) {
+        session = { startTs: now, toolUseCount: 0, fileExtensions: [] };
+        state.counters.activeSessions[sessionId] = session;
       }
+      session.lastEventTs = now;
       // Defensive: also update streak on prompt. Idempotent same-day.
       // session_start is the canonical streak driver, but prompts without
       // a preceding session_start (legacy / standalone hook firing) would
@@ -211,6 +242,7 @@ export function applyHookEvent(
         state.counters.activeSessions[sessionId] = session;
       }
       session.toolUseCount += 1;
+      session.lastEventTs = now;
       if (payload.tool_name && FILE_PATH_TOOLS.has(payload.tool_name)) {
         const fp = extractFilePath(payload.tool_input);
         if (fp) {
@@ -224,6 +256,8 @@ export function applyHookEvent(
     }
     case "stop": {
       state.progress.xp += 10;
+      const stopSession = state.counters.activeSessions[sessionId];
+      if (stopSession) stopSession.lastEventTs = now;
       break;
     }
     case "session_start": {
@@ -231,12 +265,18 @@ export function applyHookEvent(
         startTs: now,
         toolUseCount: 0,
         fileExtensions: [],
+        lastEventTs: now,
       };
       updateStreak(state, now);
       break;
     }
     case "session_end": {
-      state.progress.xp += 50;
+      // V3.5+ — XP tiered by session duration to neutralise batch noise
+      // (`claude -p` calls, eval harnesses) where every short subprocess
+      // would otherwise award the full +50 XP regardless of work done.
+      const endSession = state.counters.activeSessions[sessionId];
+      const durationMs = endSession ? now - endSession.startTs : null;
+      state.progress.xp += sessionEndXp(durationMs);
       state.counters.sessionsTotal += 1;
       // NB: deletion of activeSessions[sessionId] happens AFTER the
       // achievement check below — marathon reads startTs.

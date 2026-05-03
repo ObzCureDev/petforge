@@ -171,6 +171,7 @@ describe("applyHookEvent (pure)", () => {
       startTs: now,
       toolUseCount: 0,
       fileExtensions: [],
+      lastEventTs: now,
     });
     expect(s.counters.streakDays).toBe(1);
     expect(s.counters.lastActiveDate).toBe("2026-04-30");
@@ -180,16 +181,20 @@ describe("applyHookEvent (pure)", () => {
     const { hook, petEngine, schema } = await loadModules();
     const s = schema.createInitialState(testPet(petEngine), 0);
     const start = noonOf(2026, 4, 30);
+    const end = start + 4 * 60 * 60 * 1000 + 1; // > 4h
+    // V3.5+: lastEventTs must be recent enough to avoid the 1h-inactivity
+    // prune. A real marathon session has prompts/tools throughout — model
+    // that here by setting lastEventTs to ~5 min before end.
     s.counters.activeSessions.s1 = {
       startTs: start,
-      toolUseCount: 0,
+      toolUseCount: 1,
       fileExtensions: [],
+      lastEventTs: end - 5 * 60_000,
     };
-    const end = start + 4 * 60 * 60 * 1000 + 1; // > 4h
     hook.applyHookEvent(s, "session_end", { session_id: "s1" }, end);
     expect(s.counters.sessionsTotal).toBe(1);
     expect(s.counters.activeSessions.s1).toBeUndefined();
-    // session_end (50) + marathon_4h (1000) + hatch_egg (50, level >= 1) = 1100
+    // session_end (50, duration > 5 min) + marathon_4h (1000) + hatch_egg (50)
     expect(s.progress.xp).toBe(50 + 1000 + 50);
     expect(s.achievements.unlocked).toContain("marathon_4h");
   });
@@ -202,10 +207,128 @@ describe("applyHookEvent (pure)", () => {
       startTs: start,
       toolUseCount: 0,
       fileExtensions: [],
+      lastEventTs: start,
     };
     hook.applyHookEvent(s, "session_end", { session_id: "s1" }, start + 1000);
     expect(s.counters.activeSessions.s1).toBeUndefined();
     expect(s.achievements.unlocked).not.toContain("marathon_4h");
+  });
+
+  describe("V3.5 — session_end XP tiered by duration", () => {
+    it("awards 0 XP for sessions under 1 minute (batch noise)", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const initialXp = s.progress.xp;
+      // 30 seconds — under 1 min threshold
+      hook.applyHookEvent(s, "session_end", { session_id: "s1" }, start + 30_000);
+      // hatch_egg awards +50 (level >= 1) but session_end itself awards 0.
+      // Net diff = 50 (hatch_egg only).
+      expect(s.progress.xp - initialXp).toBe(50);
+      expect(s.counters.sessionsTotal).toBe(1);
+    });
+
+    it("awards 5 XP for 1-5 minute sessions", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const initialXp = s.progress.xp;
+      // 3 minutes — between 1 and 5
+      hook.applyHookEvent(s, "session_end", { session_id: "s1" }, start + 3 * 60_000);
+      expect(s.progress.xp - initialXp).toBe(5 + 50); // session_end (5) + hatch_egg (50)
+    });
+
+    it("awards 50 XP for sessions 5+ minutes (real session)", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const initialXp = s.progress.xp;
+      // 10 minutes — well above 5-min threshold
+      hook.applyHookEvent(s, "session_end", { session_id: "s1" }, start + 10 * 60_000);
+      expect(s.progress.xp - initialXp).toBe(50 + 50); // session_end (50) + hatch_egg (50)
+    });
+
+    it("awards 0 XP when activeSessions entry is missing (cannot compute duration)", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const initialXp = s.progress.xp;
+      // No activeSessions[s1] — session_start never fired or was pruned.
+      hook.applyHookEvent(s, "session_end", { session_id: "s1" }, Date.now());
+      // Only hatch_egg fires (+50). session_end itself awards 0.
+      expect(s.progress.xp - initialXp).toBe(50);
+    });
+  });
+
+  describe("V3.5 — lastEventTs-based stale session prune", () => {
+    it("prunes a session inactive for >1h on next event", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      // Session that started 2h ago, last event also 2h ago → inactive for 2h.
+      s.counters.activeSessions.stale1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+        lastEventTs: start,
+      };
+      // Active session that just had an event 5 min ago.
+      s.counters.activeSessions.fresh1 = {
+        startTs: start,
+        toolUseCount: 5,
+        fileExtensions: [],
+        lastEventTs: start + 115 * 60_000,
+      };
+      // Now firing a prompt 2h after `start`.
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, start + 120 * 60_000);
+      expect(s.counters.activeSessions.stale1).toBeUndefined();
+      expect(s.counters.activeSessions.fresh1).toBeDefined();
+    });
+
+    it("falls back to startTs for pre-V3.5 sessions without lastEventTs", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      // Pre-V3.5 session (no lastEventTs), started 2h ago.
+      s.counters.activeSessions.legacyStale = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, start + 120 * 60_000);
+      expect(s.counters.activeSessions.legacyStale).toBeUndefined();
+    });
+
+    it("updates lastEventTs on every per-session hook event", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const t0 = noonOf(2026, 4, 30);
+      hook.applyHookEvent(s, "session_start", { session_id: "s1" }, t0);
+      expect(s.counters.activeSessions.s1?.lastEventTs).toBe(t0);
+
+      hook.applyHookEvent(s, "prompt", { session_id: "s1" }, t0 + 1000);
+      expect(s.counters.activeSessions.s1?.lastEventTs).toBe(t0 + 1000);
+
+      hook.applyHookEvent(s, "post_tool_use", { session_id: "s1" }, t0 + 2000);
+      expect(s.counters.activeSessions.s1?.lastEventTs).toBe(t0 + 2000);
+
+      hook.applyHookEvent(s, "stop", { session_id: "s1" }, t0 + 3000);
+      expect(s.counters.activeSessions.s1?.lastEventTs).toBe(t0 + 3000);
+    });
   });
 
   it("level recompute and pendingLevelUp on threshold cross", async () => {

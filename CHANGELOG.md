@@ -1,6 +1,53 @@
 # Changelog
 
-## 3.4.2 - 2026-05-03
+## 3.5.0 - 2026-05-03
+
+**XP rebalance for batch usage + 1h-inactivity session prune.**
+Real-usage data showed `session_end` events from short non-interactive
+`claude -p` invocations (batch runners, eval harnesses) inflating XP
+~3-4× faster than designed: a 5-second subprocess awarded the same
++50 XP as an 8-hour focused coding session.
+
+### A — `session_end` XP tiered by duration
+
+| Duration | XP |
+|---|---:|
+| < 1 min  | 0   |
+| 1-5 min  | 5   |
+| ≥ 5 min  | 50  |
+
+Sub-minute sessions (the bulk of `claude -p` batch noise) award
+nothing. Short legitimate sessions get a small reward. Real coding
+sessions keep the original +50.
+
+If `activeSessions[sessionId]` is missing at session_end (start was
+pruned, or never fired), duration can't be computed → 0 XP. This
+also prevents XP inflation from "phantom" SessionEnd events with no
+matching start.
+
+### C — Active sessions pruned after 1h of inactivity
+
+- New optional `lastEventTs` field on `ActiveSession` (additive schema
+  change, V3.4 states load fine without it).
+- Updated on every per-session hook event (prompt, post_tool_use,
+  stop, session_start).
+- Prune now triggers when `now - lastEventTs > 1h` (was 24h based on
+  `startTs` — too lax, batch sessions accumulated indefinitely).
+- Falls back to `startTs` for pre-V3.5 sessions.
+- Marathon achievements still work for actively-used long sessions
+  (events keep `lastEventTs` fresh). A real "afk for hours" session
+  with zero events between start and end gets pruned — that was
+  always edge-case and `marathon_*` is meant to reward sustained
+  activity, not just leaving Claude open.
+
+### Migration
+
+No state schema bump (still V2). XP already accumulated under V3.4.x
+stays as-is — this is a calibration change, not a backfill. From
+V3.5 onwards, batch-heavy users will see XP accrue at a much more
+reasonable pace.
+
+
 
 **Hatch ladder alignment + 100% display only when truly unlocked.**
 Two display bugs that paint achievements as further along than they
