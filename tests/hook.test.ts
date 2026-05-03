@@ -194,9 +194,14 @@ describe("applyHookEvent (pure)", () => {
     hook.applyHookEvent(s, "session_end", { session_id: "s1" }, end);
     expect(s.counters.sessionsTotal).toBe(1);
     expect(s.counters.activeSessions.s1).toBeUndefined();
-    // session_end (50, duration > 5 min) + marathon_4h (1000) + hatch_egg (50)
-    expect(s.progress.xp).toBe(50 + 1000 + 50);
+    // V3.5.3: backfill runs first → marathon_4h (+1000) + hatch_egg (+50)
+    // before session_end (+50). The marathon XP pushes level past 5,
+    // which then unlocks hatch_hatchling (+500) on the post-event check.
+    // Total: 50 (hatch_egg) + 1000 (marathon_4h) + 50 (session_end) +
+    //        500 (hatch_hatchling, from level cross via marathon XP).
+    expect(s.progress.xp).toBe(50 + 1000 + 50 + 500);
     expect(s.achievements.unlocked).toContain("marathon_4h");
+    expect(s.achievements.unlocked).toContain("hatch_hatchling");
   });
 
   it("session_end: deletes activeSessions even when no marathon", async () => {
@@ -328,6 +333,107 @@ describe("applyHookEvent (pure)", () => {
 
       hook.applyHookEvent(s, "stop", { session_id: "s1" }, t0 + 3000);
       expect(s.counters.activeSessions.s1?.lastEventTs).toBe(t0 + 3000);
+    });
+  });
+
+  describe("V3.5.3 — two-tier prune (30 min toolless / 24h with tools)", () => {
+    it("tool-using session survives 23h of inactivity", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      s.counters.activeSessions.real1 = {
+        startTs: start,
+        toolUseCount: 5,
+        fileExtensions: [],
+        lastEventTs: start,
+      };
+      // 23h after last event — under 24h ACTIVE_PRUNE_MS.
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, start + 23 * 60 * 60_000);
+      expect(s.counters.activeSessions.real1).toBeDefined();
+    });
+
+    it("tool-using session is pruned after 25h of inactivity", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      s.counters.activeSessions.dead1 = {
+        startTs: start,
+        toolUseCount: 5,
+        fileExtensions: [],
+        lastEventTs: start,
+      };
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, start + 25 * 60 * 60_000);
+      expect(s.counters.activeSessions.dead1).toBeUndefined();
+    });
+
+    it("tool-less session survives 25 min of inactivity", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      s.counters.activeSessions.toolless = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+        lastEventTs: start,
+      };
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, start + 25 * 60_000);
+      expect(s.counters.activeSessions.toolless).toBeDefined();
+    });
+
+    it("tool-less session is pruned after 35 min of inactivity", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      s.counters.activeSessions.batch = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+        lastEventTs: start,
+      };
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, start + 35 * 60_000);
+      expect(s.counters.activeSessions.batch).toBeUndefined();
+    });
+  });
+
+  describe("V3.5.3 — marathon medals saved before prune", () => {
+    it("unlocks marathon_24h when a 25h tool-using session is pruned", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      // Session started 26h ago, last event 25h ago → idle 25h > 24h
+      // ACTIVE_PRUNE_MS → will be pruned. But session lifetime > 24h →
+      // marathon_24h must be saved before deletion.
+      const sessionStart = start;
+      s.counters.activeSessions.long1 = {
+        startTs: sessionStart,
+        toolUseCount: 50,
+        fileExtensions: ["ts", "md"],
+        lastEventTs: sessionStart + 60_000, // last event 1 min after start
+      };
+      const eventTime = sessionStart + 26 * 60 * 60_000; // 26h later
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, eventTime);
+      expect(s.counters.activeSessions.long1).toBeUndefined();
+      expect(s.achievements.unlocked).toContain("marathon_24h");
+      expect(s.achievements.unlocked).toContain("marathon_12h");
+      expect(s.achievements.unlocked).toContain("marathon_4h");
+    });
+
+    it("does NOT unlock any marathon when a short session is pruned", async () => {
+      const { hook, petEngine, schema } = await loadModules();
+      const s = schema.createInitialState(testPet(petEngine), 0);
+      const start = noonOf(2026, 4, 30);
+      // 35 min total lifetime, tool-less → pruned but no marathon.
+      s.counters.activeSessions.short1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+        lastEventTs: start,
+      };
+      hook.applyHookEvent(s, "prompt", { session_id: "new1" }, start + 35 * 60_000);
+      expect(s.counters.activeSessions.short1).toBeUndefined();
+      expect(s.achievements.unlocked).not.toContain("marathon_4h");
+      expect(s.achievements.unlocked).not.toContain("marathon_12h");
+      expect(s.achievements.unlocked).not.toContain("marathon_24h");
     });
   });
 

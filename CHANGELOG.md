@@ -1,5 +1,58 @@
 # Changelog
 
+## 3.5.3 - 2026-05-03
+
+**Two-tier prune + marathon medals saved before deletion + backfill
+ordering fix.** V3.5's blanket 1h-inactivity prune was too aggressive
+for users who legitimately leave Claude Code open across breaks
+(lunch, sleep, returning the next day). It also silently dropped
+sessions that had crossed marathon thresholds before being pruned.
+
+### Two-tier prune (`pruneStaleSessions`)
+
+| Session type | Prune after |
+|---|---|
+| `toolUseCount === 0` (likely batch noise) | **30 min** of inactivity |
+| `toolUseCount > 0` (real interactive)     | **24 h** of inactivity |
+
+Distinguishes ephemeral `claude -p` subprocesses (which never use a
+tool) from real coding sessions. The latter survive lunch breaks,
+overnight sleep, and "I'll come back to this tomorrow" patterns.
+
+### Marathon medals saved at prune time
+
+Before deletion, `pruneStaleSessions` checks if the session's lifetime
+(`now - startTs`) crossed any marathon threshold (4h / 12h / 24h)
+and unlocks the corresponding achievement(s) idempotently. Without
+this, a 25h interactive session pruned at 24h+1min idle silently
+lost its `marathon_24h` despite genuinely satisfying the requirement.
+
+### Backfill runs BEFORE prune
+
+`applyHookEvent` now calls `backfillEarnedAchievements` before
+`pruneStaleSessions`. This gives the backfill a chance to inspect
+every active session — including ones about to be pruned — for
+polyglot / refactor / marathon thresholds. Defense-in-depth on top
+of the in-prune marathon save.
+
+The redundant second backfill call (post-`checkAchievementsForEvent`)
+is removed; once at the top of the function is sufficient.
+
+### Tests
+
+- Two-tier prune: 4 cases (with-tools 23h survive / 25h prune,
+  toolless 25 min survive / 35 min prune)
+- Marathon-save: 25h tool-using session pruned → marathon_24h
+  unlocked along with 12h/4h; short tool-less session pruned →
+  no marathon
+- Updated existing session_end / marathon test for the new
+  XP order (backfill awards marathon BEFORE session_end → level
+  cross unlocks hatch_hatchling earlier)
+- Total: 336 (was 330)
+
+No state schema bump, no migration. The `lastEventTs` field
+introduced in V3.5 is unchanged.
+
 ## 3.5.2 - 2026-05-03
 
 **Display correctness pass — hatch ladder + frugal calibration + persistent

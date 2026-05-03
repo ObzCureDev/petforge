@@ -19,12 +19,14 @@
  */
 
 import {
+  ACHIEVEMENTS,
   backfillEarnedAchievements,
   checkAchievementsForEvent,
   type HookEvent,
   isNightOwlHour,
   updateStreak,
 } from "../core/achievements.js";
+import type { AchievementId } from "../core/schema.js";
 import { generatePet } from "../core/pet-engine.js";
 import type { State } from "../core/schema.js";
 import { logHookError, recoverCorruptState, withStateLock } from "../core/state.js";
@@ -34,32 +36,63 @@ import { levelForXp, phaseForLevel } from "../core/xp.js";
 const FILE_PATH_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 
 /**
- * V3.5+ — inactivity threshold for pruning active sessions.
+ * V3.5.3 — two-tier inactivity threshold.
  *
- * Was 24h based on `startTs` (V1) — kept around long-running sessions,
- * but also accumulated orphaned entries from short non-interactive
- * `claude -p` invocations whose `session_end` got cancelled by hook
- * timeouts under concurrency. Now based on `lastEventTs` (last seen
- * activity), 1h: enough for someone to step away from a real session
- * without losing it, short enough that batch noise dies fast.
+ * Distinguishes batch noise from real interactive sessions by whether
+ * any tool was used. A `claude -p` subprocess that never invoked a tool
+ * is treated as ephemeral and pruned aggressively (30 min idle).
+ * A session with at least one tool use is treated as a real coding
+ * session: it survives breaks (lunch, sleep, returning the next day)
+ * and only dies after 24h of total inactivity.
  *
- * Marathon achievements (4h / 12h / 24h) still work — those rely on
- * `now - startTs` of an *active* session, and a real coding session
- * gets prompts/tools regularly enough to keep `lastEventTs` fresh.
+ * This protects marathon achievements (4h / 12h / 24h) for users who
+ * leave Claude Code open across breaks while still cleaning up the
+ * orphan entries that V3.5 was designed to address.
  */
-const STALE_SESSION_MS = 60 * 60 * 1000;
+const TOOLLESS_PRUNE_MS = 30 * 60 * 1000; //  30 min — batch noise
+const ACTIVE_PRUNE_MS = 24 * 60 * 60 * 1000; // 24h    — real sessions
+
+const MARATHON_THRESHOLDS: ReadonlyArray<{ id: AchievementId; ms: number }> = [
+  { id: "marathon_24h", ms: 24 * 60 * 60 * 1000 },
+  { id: "marathon_12h", ms: 12 * 60 * 60 * 1000 },
+  { id: "marathon_4h", ms: 4 * 60 * 60 * 1000 },
+];
 
 /**
- * Remove activeSessions entries that have been inactive for longer than
- * STALE_SESSION_MS. Fallback: pre-V3.5 sessions without `lastEventTs`
- * use `startTs` (matches the legacy semantics for them).
+ * Remove inactive activeSessions entries.
+ *
+ * Two-tier:
+ *   - tool-less (likely batch noise) → 30 min inactivity
+ *   - has tool use (real session)    → 24 h inactivity
+ *
+ * Before deleting, save any marathon thresholds the session crossed —
+ * a long session that's about to be pruned should still award its
+ * marathon medal. Without this, sessions that lived past 24h before
+ * being pruned silently never unlocked marathon_24h.
+ *
+ * Falls back to `startTs` for pre-V3.5 sessions without `lastEventTs`.
  */
 function pruneStaleSessions(state: State, now: number): void {
   for (const [sid, session] of Object.entries(state.counters.activeSessions)) {
     const ts = session.lastEventTs ?? session.startTs;
-    if (now - ts > STALE_SESSION_MS) {
-      delete state.counters.activeSessions[sid];
+    const idle = now - ts;
+    const ttl = session.toolUseCount > 0 ? ACTIVE_PRUNE_MS : TOOLLESS_PRUNE_MS;
+    if (idle <= ttl) continue;
+
+    // Save marathon medals before deletion. A session that lived past
+    // any marathon threshold should still award its medal — otherwise
+    // silently-pruned long sessions lost their progress. Idempotent
+    // (already-unlocked entries are skipped).
+    const lifetime = now - session.startTs;
+    for (const m of MARATHON_THRESHOLDS) {
+      if (lifetime >= m.ms && !state.achievements.unlocked.includes(m.id)) {
+        state.achievements.unlocked.push(m.id);
+        state.achievements.pendingUnlocks.push(m.id);
+        state.progress.xp += ACHIEVEMENTS[m.id].xp;
+      }
     }
+
+    delete state.counters.activeSessions[sid];
   }
 }
 
@@ -202,6 +235,12 @@ export function applyHookEvent(
   payload: ClaudeHookPayload,
   now: number,
 ): void {
+  // V3.5.3 — backfill BEFORE prune. The prune may delete sessions that
+  // crossed a marathon threshold; pruneStaleSessions itself preserves
+  // those medals via the in-prune save loop, but running backfill first
+  // gives backfillEarnedAchievements a chance to inspect every
+  // pre-prune session for polyglot/refactor too.
+  backfillEarnedAchievements(state, now);
   pruneStaleSessions(state, now);
   const sessionId = payload.session_id ?? "unknown";
   const oldLevel = state.progress.level;
@@ -293,13 +332,10 @@ export function applyHookEvent(
   state.progress.level = newLevel;
   state.progress.phase = phaseForLevel(newLevel);
 
-  // 3) Achievement checks. Must run BEFORE session_end deletion below.
+  // 3) Achievement checks. Must run BEFORE session_end deletion below
+  // because the marathon check reads activeSessions[sessionId].startTs.
+  // Backfill already ran at the top of this function (V3.5.3 reorder).
   checkAchievementsForEvent(state, event, { sessionId, now });
-
-  // 3b) Backfill any thresholds already crossed but never unlocked by a
-  //     prior hook (e.g. legacy state from before a check was added). Idempotent:
-  //     once unlocked, subsequent runs are no-ops.
-  backfillEarnedAchievements(state, now);
 
   // Achievement XP can itself cross level boundaries — recompute again so
   // the persisted level/phase reflects unlocked-achievement XP, and so a
