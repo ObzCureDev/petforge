@@ -67,18 +67,42 @@ describe("checkOtelAchievements", () => {
     expect(newly).not.toContain("cache_100k");
   });
 
-  it("frugal_100p requires 100 prompts AND <= $1 cost", () => {
+  it("frugal_100p requires 100 prompts AND <= $10 cost (V3.5.2: bumped from $1)", () => {
     const s = withOtel();
     s.counters.promptsTotal = 100;
-    otelOf(s).costUsdCents = 100;
+    otelOf(s).costUsdCents = 1_000; // exactly $10 — at ceiling, still passes
     let newly = checkOtelAchievements(s);
     expect(newly).toContain("frugal_100p");
 
     const s2 = withOtel();
     s2.counters.promptsTotal = 100;
-    otelOf(s2).costUsdCents = 101;
+    otelOf(s2).costUsdCents = 1_001; // $10.01 — over ceiling, fails
     newly = checkOtelAchievements(s2);
     expect(newly).not.toContain("frugal_100p");
+  });
+
+  it("frugal_500p ceiling = $50 (V3.5.2)", () => {
+    const s = withOtel();
+    s.counters.promptsTotal = 500;
+    otelOf(s).costUsdCents = 5_000;
+    expect(checkOtelAchievements(s)).toContain("frugal_500p");
+
+    const s2 = withOtel();
+    s2.counters.promptsTotal = 500;
+    otelOf(s2).costUsdCents = 5_001;
+    expect(checkOtelAchievements(s2)).not.toContain("frugal_500p");
+  });
+
+  it("frugal_2kp ceiling = $200 (V3.5.2)", () => {
+    const s = withOtel();
+    s.counters.promptsTotal = 2_000;
+    otelOf(s).costUsdCents = 20_000;
+    expect(checkOtelAchievements(s)).toContain("frugal_2kp");
+
+    const s2 = withOtel();
+    s2.counters.promptsTotal = 2_000;
+    otelOf(s2).costUsdCents = 20_001;
+    expect(checkOtelAchievements(s2)).not.toContain("frugal_2kp");
   });
 
   it("big_spender_100 at $100 cumulative", () => {

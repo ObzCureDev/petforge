@@ -319,21 +319,21 @@ export const ACHIEVEMENTS: Readonly<Record<AchievementId, AchievementDef>> = {
     id: "frugal_100p",
     name: "Frugal · 100 prompts",
     xp: 1_000,
-    description: "Send 100+ prompts while keeping total spend under $1.",
+    description: "Send 100+ prompts while keeping total spend under $10.",
     medal: "bronze",
   },
   frugal_500p: {
     id: "frugal_500p",
     name: "Frugal · 500 prompts",
     xp: 3_000,
-    description: "Send 500+ prompts while keeping total spend under $5.",
+    description: "Send 500+ prompts while keeping total spend under $50.",
     medal: "silver",
   },
   frugal_2kp: {
     id: "frugal_2kp",
     name: "Frugal · 2K prompts",
     xp: 10_000,
-    description: "Send 2,000+ prompts while keeping total spend under $20.",
+    description: "Send 2,000+ prompts while keeping total spend under $200.",
     medal: "gold",
   },
 
@@ -496,12 +496,14 @@ export function checkAchievementsForEvent(
   // Marathon - uses the active session's duration. Triggers from any
   // event so a long-running session unlocks during the session, not only
   // on close (Claude Code rarely fires session_end in normal usage).
+  // V3.5.2: `>=` instead of `>` for consistency with the display
+  // (`Math.min(target, durationMs)` caps at 100% at exactly target).
   const checkMarathon = (): void => {
     if (!session) return;
     const duration = input.now - session.startTs;
-    tryUnlock("marathon_4h", duration > 4 * 60 * 60 * 1000);
-    tryUnlock("marathon_12h", duration > 12 * 60 * 60 * 1000);
-    tryUnlock("marathon_24h", duration > 24 * 60 * 60 * 1000);
+    tryUnlock("marathon_4h", duration >= 4 * 60 * 60 * 1000);
+    tryUnlock("marathon_12h", duration >= 12 * 60 * 60 * 1000);
+    tryUnlock("marathon_24h", duration >= 24 * 60 * 60 * 1000);
   };
 
   const checkPolyglot = (): void => {
@@ -620,9 +622,9 @@ export function backfillEarnedAchievements(state: State, now: number): Achieveme
     if (s.fileExtensions.length > maxExt) maxExt = s.fileExtensions.length;
     if (s.toolUseCount > maxToolPerSession) maxToolPerSession = s.toolUseCount;
   }
-  tryUnlock("marathon_4h", maxDuration > 4 * 60 * 60 * 1000);
-  tryUnlock("marathon_12h", maxDuration > 12 * 60 * 60 * 1000);
-  tryUnlock("marathon_24h", maxDuration > 24 * 60 * 60 * 1000);
+  tryUnlock("marathon_4h", maxDuration >= 4 * 60 * 60 * 1000);
+  tryUnlock("marathon_12h", maxDuration >= 12 * 60 * 60 * 1000);
+  tryUnlock("marathon_24h", maxDuration >= 24 * 60 * 60 * 1000);
   tryUnlock("polyglot_5", maxExt >= 5);
   tryUnlock("polyglot_8", maxExt >= 8);
   tryUnlock("polyglot_12", maxExt >= 12);

@@ -18,9 +18,14 @@ const CACHE_RATIO_90 = 0.9;
 const FRUGAL_BRONZE_PROMPTS = 100;
 const FRUGAL_SILVER_PROMPTS = 500;
 const FRUGAL_GOLD_PROMPTS = 2_000;
-const FRUGAL_BRONZE_MAX_CENTS = 100; // $1
-const FRUGAL_SILVER_MAX_CENTS = 500; // $5
-const FRUGAL_GOLD_MAX_CENTS = 2_000; // $20
+// V3.5.2: bumped 10× from V3.4 values ($1/$5/$20). Original threshold of
+// $0.01/prompt was unreachable for any real Claude Code usage — even
+// cache-heavy mixed-model sessions land around $0.05-0.15/prompt. New
+// $0.10/prompt target is achievable for the majority of users while
+// still rewarding economy (anyone doing pure Opus-no-cache will fail).
+const FRUGAL_BRONZE_MAX_CENTS = 1_000; // $10
+const FRUGAL_SILVER_MAX_CENTS = 5_000; // $50
+const FRUGAL_GOLD_MAX_CENTS = 20_000; // $200
 
 const SPENDER_BRONZE_CENTS = 10_000; // $100
 const SPENDER_SILVER_CENTS = 50_000; // $500

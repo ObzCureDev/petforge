@@ -1,5 +1,57 @@
 # Changelog
 
+## 3.5.2 - 2026-05-03
+
+**Display correctness pass — hatch ladder + frugal calibration + persistent
+accordions.**
+
+Hatch ladder display
+- `achievementProgress` (web view) now uses 12/30/60 for hatch_junior/
+  hatch_adult/hatch_elder, matching `phaseForLevel` and the unlock
+  thresholds. Pre-V3.5.2 the bars showed 48/80 for Hatch Elder while
+  the description said "Reach level 60", and Hatch Adult showed 48/50
+  with description "Reach level 30" — same target/text mismatch on
+  three rows.
+- Completed achievements no longer print a misleading "current /
+  target" line ("48 / 5 unlocked" looked broken). Just "unlocked
+  (+xp)" now.
+
+Frugal calibration
+- Cost ceilings 10x: 100p < $10 (was $1), 500p < $50 (was $5),
+  2000p < $200 (was $20). Original $0.01/prompt threshold was
+  unreachable — even cache-heavy mixed-model usage lands around
+  $0.05-0.15/prompt. New $0.10/prompt target is achievable for
+  the majority of users while still rewarding economy.
+- New `failed` status for terminally-violated side conditions.
+  Frugal achievements where cost exceeds the ceiling now render as
+  ✗ "failed" with `text-decoration: line-through`, removed from
+  Next Goals + Near completion (those filter to in-progress only).
+  Prior behaviour: stayed at "99% in-progress" forever despite
+  being mathematically dead.
+
+Marathon
+- `>` -> `>=` on the unlock check for display consistency. At
+  exactly 4h the bar showed 100% but the unlock didn't fire (it
+  needed strictly > 4h). Edge case but inconsistent.
+
+Persistent accordions
+- `<details>` open/closed state survives SSE-driven re-renders.
+  Each category and each individual achievement gets a stable
+  `data-cat` / `data-ach-id` attribute; the renderer captures
+  open state into a transient JS object before innerHTML
+  replacement and restores it after. No more "I clicked open
+  but it snapped shut on next push".
+
+Tests
+- New: hatch boundary regression (12/30/60), marathon at exactly
+  4h, frugal at $10/$50/$200 ceilings.
+- Updated: legacy "marathon does NOT fire at 4h" was asserting
+  the bug — replaced with "fires at exactly 4h" and a sub-4h
+  negative case.
+- Total: 330 (was 315).
+
+No state schema bump, no migration. Pure UX correctness pass.
+
 ## 3.5.1 - 2026-05-03
 
 **Cache token counters fixed.** The OTel collector was checking for

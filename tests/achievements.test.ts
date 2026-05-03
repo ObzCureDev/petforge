@@ -248,7 +248,7 @@ describe("achievements", () => {
       expect(newly).toContain("refactor_100");
     });
 
-    it("marathon_4h fires on session_end with strictly >4h duration", () => {
+    it("marathon_4h fires on session_end at >= 4h duration", () => {
       const s = freshState();
       const start = 1_700_000_000_000;
       s.counters.activeSessions.s1 = {
@@ -259,6 +259,21 @@ describe("achievements", () => {
       const newly = checkAchievementsForEvent(s, "session_end", {
         sessionId: "s1",
         now: start + 4 * 60 * 60 * 1000 + 1,
+      });
+      expect(newly).toContain("marathon_4h");
+    });
+
+    it("marathon_4h fires at exactly 4h (V3.5.2: >= not > for display consistency)", () => {
+      const s = freshState();
+      const start = 1_700_000_000_000;
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const newly = checkAchievementsForEvent(s, "prompt", {
+        sessionId: "s1",
+        now: start + 4 * 60 * 60 * 1000, // EXACTLY 4h
       });
       expect(newly).toContain("marathon_4h");
     });
@@ -309,7 +324,9 @@ describe("achievements", () => {
       expect(newly).toContain("marathon_24h");
     });
 
-    it("marathon_4h does NOT fire on exactly 4h", () => {
+    it("marathon_4h DOES fire on exactly 4h (V3.5.2: changed > to >=)", () => {
+      // Pre-V3.5.2 the unlock used strict `>` while the display capped
+      // at 100% at exactly the target — inconsistent. Now both use `>=`.
       const s = freshState();
       const start = 1_700_000_000_000;
       s.counters.activeSessions.s1 = {
@@ -320,6 +337,21 @@ describe("achievements", () => {
       const newly = checkAchievementsForEvent(s, "session_end", {
         sessionId: "s1",
         now: start + 4 * 60 * 60 * 1000,
+      });
+      expect(newly).toContain("marathon_4h");
+    });
+
+    it("marathon_4h does NOT fire below 4h", () => {
+      const s = freshState();
+      const start = 1_700_000_000_000;
+      s.counters.activeSessions.s1 = {
+        startTs: start,
+        toolUseCount: 0,
+        fileExtensions: [],
+      };
+      const newly = checkAchievementsForEvent(s, "session_end", {
+        sessionId: "s1",
+        now: start + 4 * 60 * 60 * 1000 - 1, // 3h59m59s.999
       });
       expect(newly).not.toContain("marathon_4h");
     });

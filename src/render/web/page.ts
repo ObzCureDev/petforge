@@ -329,6 +329,11 @@ const CSS = `
   .ach[data-status="completed"] .ach-status { color: #3fb950; }
   .ach[data-status="in-progress"] .ach-status { color: #58a6ff; }
   .ach[data-status="locked"] .ach-status { color: #6e7681; }
+  /* V3.5.2 - failed = terminal side-condition violation (frugal cost over ceiling). */
+  .ach[data-status="failed"] .ach-status { color: #f85149; }
+  .ach[data-status="failed"] .ach-pct    { color: #f85149; font-weight: 600; }
+  .ach[data-status="failed"] .ach-name   { color: #8b949e; text-decoration: line-through; }
+  .ach[data-status="failed"] .ach-bar-fill { background: #6e7681; }
 
   /* V3.4 - hide pct for completed (status symbol carries the info) */
   .ach[data-status="completed"] .ach-pct { visibility: hidden; }
@@ -488,6 +493,27 @@ const CLIENT_JS = `
     return "Other";
   }
 
+  /**
+   * V3.5.2 — detect achievements whose side condition has been
+   * permanently violated and can no longer unlock.
+   *
+   * Currently only covers Frugal: the prompt count grows monotonically,
+   * but the cost ceiling is one-way too — once cost crosses the cap,
+   * the achievement is dead forever (no way to give back money).
+   *
+   * Cache_* are NOT terminal: hit ratio can recover with more cache reads.
+   * Marathon, streak, etc. are not terminal either.
+   */
+  function isTerminallyFailed(id, state) {
+    var c = state.counters || {};
+    var o = c.otel || {};
+    var costCents = o.costUsdCents || 0;
+    if (id === "frugal_100p") return costCents > 1000;   // > $10
+    if (id === "frugal_500p") return costCents > 5000;   // > $50
+    if (id === "frugal_2kp") return costCents > 20000;   // > $200
+    return false;
+  }
+
   function getStatus(id, state) {
     // Single source of truth: only the unlocked array marks an achievement
     // as completed. Compound achievements (cache_*, frugal_*) can have
@@ -497,12 +523,18 @@ const CLIENT_JS = `
     // which catches simple thresholds; OTel-gated ones get caught by the
     // next collect tick.
     if (state.achievements.unlocked.indexOf(id) !== -1) return "completed";
+    if (isTerminallyFailed(id, state)) return "failed";
     var p = achievementProgress(id, state);
     if (p.target > 0 && p.current > 0) return "in-progress";
     return "locked";
   }
 
-  var STATUS_SYMBOL = { "completed": "✅", "in-progress": "◐", "locked": "○" };
+  var STATUS_SYMBOL = {
+    "completed": "✅",
+    "in-progress": "◐",
+    "locked": "○",
+    "failed": "✗",
+  };
 
   function ratioOf(id, state) {
     var p = achievementProgress(id, state);
@@ -584,12 +616,12 @@ const CLIENT_JS = `
     var TWELVE_H = 12 * 60 * 60 * 1000;
     var TWENTYFOUR_H = 24 * 60 * 60 * 1000;
     switch (id) {
-      // Hatch ladder (level)
+      // Hatch ladder (level) — must match phaseForLevel (xp.ts).
       case "hatch_egg": return { current: p.level || 0, target: 1 };
       case "hatch_hatchling": return { current: p.level || 0, target: 5 };
-      case "hatch_junior": return { current: p.level || 0, target: 20 };
-      case "hatch_adult": return { current: p.level || 0, target: 50 };
-      case "hatch_elder": return { current: p.level || 0, target: 80 };
+      case "hatch_junior": return { current: p.level || 0, target: 12 };
+      case "hatch_adult": return { current: p.level || 0, target: 30 };
+      case "hatch_elder": return { current: p.level || 0, target: 60 };
       case "hatch_mythic": return { current: p.level || 0, target: 100 };
       // Streak
       case "streak_3d": return { current: c.streakDays || 0, target: 3 };
@@ -842,6 +874,8 @@ const CLIENT_JS = `
       var pctStr;
       if (status === "completed") {
         pctStr = "100%";
+      } else if (status === "failed") {
+        pctStr = "failed";
       } else {
         var rawPct = Math.floor(ratio * 100);
         pctStr = Math.min(99, rawPct) + "%";
@@ -856,19 +890,33 @@ const CLIENT_JS = `
       var classes = "ach " + status + (medal ? " medal-" + medal : "");
       var symbol = STATUS_SYMBOL[status];
 
-      var html = '<details class="' + classes + '" data-status="' + status + '">';
+      var html = '<details class="' + classes + '" data-status="' + status + '" data-ach-id="' + id + '">';
       html += '<summary class="ach-summary">';
       html += '<span class="ach-status">' + symbol + '</span> ';
       if (medalEmoji) html += '<span class="ach-medal">' + medalEmoji + '</span> ';
       else html += '<span class="ach-medal" style="visibility:hidden">.</span> ';
       html += '<span class="ach-name">' + def.name + '</span>';
       html += '<span class="ach-pct">' + (status === "completed" ? "" : pctStr) + '</span>';
+      // The summary mini-bar is hidden for completed AND failed (failed
+      // would show a misleading partial progress).
       html += '<div class="ach-mini-bar"><div class="ach-mini-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
       html += '</summary>';
       html += '<div class="ach-detail">';
       html += '<p class="ach-desc">' + def.description + '</p>';
       html += '<div class="ach-bar-track"><div class="ach-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
-      html += '<p class="ach-progress-label">' + progressLabel + (status === "completed" ? " · unlocked (+" + def.xp + " xp)" : "") + '</p>';
+      // Completed: just the unlocked tag (no current/target — it's
+      // confusing for hatch_* where current = current level and the user
+      // long since blew past the threshold, e.g. "48 / 5 unlocked").
+      // Failed: explain why (frugal cost ceiling exceeded).
+      var labelHtml;
+      if (status === "completed") {
+        labelHtml = "unlocked (+" + def.xp + " xp)";
+      } else if (status === "failed") {
+        labelHtml = progressLabel + " · spend ceiling exceeded — no longer reachable";
+      } else {
+        labelHtml = progressLabel;
+      }
+      html += '<p class="ach-progress-label">' + labelHtml + '</p>';
       html += '</div>';
       html += '</details>';
       return html;
@@ -889,7 +937,7 @@ const CLIENT_JS = `
         ? (headSym + " " + virtualCount)
         : (headSym + " " + unlocked + "/" + ids.length);
 
-      var html = '<details class="cat-details"' + (isOpen ? ' open' : '') + '>';
+      var html = '<details class="cat-details" data-cat="' + name + '"' + (isOpen ? ' open' : '') + '>';
       html += '<summary class="cat-summary">';
       html += '<span class="caret">' + (isOpen ? '▾' : '▸') + '</span>';
       html += '<span class="cat-name">' + name + '</span>';
@@ -903,15 +951,51 @@ const CLIENT_JS = `
     }
 
     // 1. Next Goals card.
+    // V3.5.2 — capture which <details> are open right before we blow
+    // away the DOM, so we can restore them afterwards. Without this, any
+    // SSE-driven re-render snaps every accordion shut.
+    function captureOpenState(rootEl) {
+      var openAch = {};
+      var openCat = {};
+      if (!rootEl) return { ach: openAch, cat: openCat };
+      var detailsList = rootEl.querySelectorAll("details");
+      for (var i = 0; i < detailsList.length; i++) {
+        var d = detailsList[i];
+        if (!d.open) continue;
+        var aid = d.getAttribute("data-ach-id");
+        if (aid) openAch[aid] = true;
+        var cn = d.getAttribute("data-cat");
+        if (cn) openCat[cn] = true;
+      }
+      return { ach: openAch, cat: openCat };
+    }
+    function restoreOpenState(rootEl, state) {
+      if (!rootEl) return;
+      var detailsList = rootEl.querySelectorAll("details");
+      for (var i = 0; i < detailsList.length; i++) {
+        var d = detailsList[i];
+        var aid = d.getAttribute("data-ach-id");
+        if (aid && state.ach[aid]) d.open = true;
+        var cn = d.getAttribute("data-cat");
+        if (cn && state.cat[cn]) d.open = true;
+      }
+    }
+    var goalsRoot = byId("goals");
+    var achievementsRoot = byId("achievements");
+    var prevOpen = {
+      goals: captureOpenState(goalsRoot),
+      ach: captureOpenState(achievementsRoot),
+    };
+
     var ng = nextGoals(s);
     var goalsCard = byId("goals-card");
     if (ng.length > 0) {
       var goalsHtml = "";
       for (var gi = 0; gi < ng.length; gi++) goalsHtml += renderAchievementRow(ng[gi].id, s);
-      byId("goals").innerHTML = goalsHtml;
+      goalsRoot.innerHTML = goalsHtml;
       goalsCard.hidden = false;
     } else {
-      byId("goals").innerHTML = "";
+      goalsRoot.innerHTML = "";
       goalsCard.hidden = true;
     }
 
@@ -935,7 +1019,11 @@ const CLIENT_JS = `
       var openByDefault = cname === "Evolution";
       achHtml += renderCategorySection(cname, cids, s, openByDefault, undefined);
     }
-    byId("achievements").innerHTML = achHtml;
+    achievementsRoot.innerHTML = achHtml;
+
+    // Restore previously-open accordions (categories + individual rows).
+    restoreOpenState(goalsRoot, prevOpen.goals);
+    restoreOpenState(achievementsRoot, prevOpen.ach);
 
     byId("activity").textContent =
       "Sessions " + s.counters.sessionsTotal.toLocaleString() +
