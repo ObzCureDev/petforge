@@ -899,11 +899,12 @@ const CLIENT_JS = `
       html += '<span class="ach-pct">' + (status === "completed" ? "" : pctStr) + '</span>';
       // The summary mini-bar is hidden for completed AND failed (failed
       // would show a misleading partial progress).
-      html += '<div class="ach-mini-bar"><div class="ach-mini-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
+      var barPct = status === "completed" ? 100 : Math.min(99, Math.floor(ratio * 100));
+      html += '<div class="ach-mini-bar"><div class="ach-mini-bar-fill" style="width:' + barPct + '%"></div></div>';
       html += '</summary>';
       html += '<div class="ach-detail">';
       html += '<p class="ach-desc">' + def.description + '</p>';
-      html += '<div class="ach-bar-track"><div class="ach-bar-fill" style="width:' + (ratio * 100) + '%"></div></div>';
+      html += '<div class="ach-bar-track"><div class="ach-bar-fill" style="width:' + barPct + '%"></div></div>';
       // Completed: just the unlocked tag (no current/target — it's
       // confusing for hatch_* where current = current level and the user
       // long since blew past the threshold, e.g. "48 / 5 unlocked").
