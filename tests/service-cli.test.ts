@@ -130,3 +130,46 @@ describe("serviceCli", () => {
     expect(printed).toMatch(/Usage:\s+petforge service/);
   });
 });
+
+describe("serviceCli --name parity across subcommands", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("forwards --name=custom to uninstall", async () => {
+    const fakeMgr = {
+      install: vi.fn(),
+      uninstall: vi.fn().mockResolvedValue({ status: "uninstalled" }),
+      status: vi.fn(),
+    };
+    vi.spyOn(svcMod, "getServiceManager").mockReturnValue(fakeMgr as unknown as ServiceManager);
+    const { serviceCli } = await import("../src/commands/service.js");
+    const code = await serviceCli(["uninstall", "--name=custom"]);
+    expect(code).toBe(0);
+    expect(fakeMgr.uninstall).toHaveBeenCalledWith("custom");
+  });
+
+  it("forwards --name=custom to status", async () => {
+    const fakeMgr = {
+      install: vi.fn(),
+      uninstall: vi.fn(),
+      status: vi.fn().mockResolvedValue({ state: "not-installed", manifestPath: null }),
+    };
+    vi.spyOn(svcMod, "getServiceManager").mockReturnValue(fakeMgr as unknown as ServiceManager);
+    const { serviceCli } = await import("../src/commands/service.js");
+    const code = await serviceCli(["status", "--name=custom"]);
+    expect(code).toBe(0);
+    expect(fakeMgr.status).toHaveBeenCalledWith("custom");
+  });
+
+  it("ignores empty --name= value (no surprise empty-string passed downstream)", async () => {
+    const fakeMgr = {
+      install: vi.fn().mockResolvedValue({ status: "installed", manifestPath: "/tmp/x", hint: "" }),
+      uninstall: vi.fn(),
+      status: vi.fn(),
+    };
+    vi.spyOn(svcMod, "getServiceManager").mockReturnValue(fakeMgr as unknown as ServiceManager);
+    const { serviceCli } = await import("../src/commands/service.js");
+    const code = await serviceCli(["install", "--name=", "--lan"]);
+    expect(code).toBe(0);
+    expect(fakeMgr.install).toHaveBeenCalledWith({ upArgs: ["--lan"], name: undefined });
+  });
+});

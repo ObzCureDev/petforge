@@ -10,8 +10,7 @@
  *   Linux    systemd --user unit      (~/.config/systemd/user/)
  */
 
-import type { ServiceManager } from "../core/service/index.js";
-import { getServiceManager } from "../core/service/index.js";
+import { getServiceManager, type ServiceManager } from "../core/service/index.js";
 
 export async function serviceCli(argv: string[]): Promise<number> {
   const sub = argv[0];
@@ -36,7 +35,7 @@ export async function serviceCli(argv: string[]): Promise<number> {
 
   try {
     if (sub === "install") {
-      const { upArgs, name } = parseInstall(rest);
+      const { upArgs, name } = parseArgs(rest);
       const r = await mgr.install({ upArgs, name });
       process.stdout.write(`Service ${r.status} at ${r.manifestPath}\n`);
       if (r.hint) {
@@ -45,12 +44,14 @@ export async function serviceCli(argv: string[]): Promise<number> {
       return 0;
     }
     if (sub === "uninstall") {
-      const r = await mgr.uninstall();
+      const { name } = parseArgs(rest);
+      const r = await mgr.uninstall(name);
       process.stdout.write(`Service ${r.status}\n`);
       return 0;
     }
     if (sub === "status") {
-      const s = await mgr.status();
+      const { name } = parseArgs(rest);
+      const s = await mgr.status(name);
       process.stdout.write(`State: ${s.state}\n`);
       if (s.manifestPath) {
         process.stdout.write(`Manifest: ${s.manifestPath}\n`);
@@ -66,12 +67,15 @@ export async function serviceCli(argv: string[]): Promise<number> {
   return 1;
 }
 
-function parseInstall(argv: string[]): { upArgs: string[]; name: string | undefined } {
+function parseArgs(argv: string[]): { upArgs: string[]; name: string | undefined } {
   const upArgs: string[] = [];
   let name: string | undefined;
   for (const a of argv) {
     if (a.startsWith("--name=")) {
-      name = a.slice("--name=".length);
+      const v = a.slice("--name=".length);
+      if (v.length > 0) {
+        name = v;
+      }
     } else {
       upArgs.push(a);
     }
@@ -82,9 +86,9 @@ function parseInstall(argv: string[]): { upArgs: string[]; name: string | undefi
 function usage(): string {
   return [
     "Usage:",
-    "  petforge service install [--lan] [--port=N] [--collect-port=N] [--host=IP] [--token=XXX] [--name=NAME]",
-    "  petforge service uninstall",
-    "  petforge service status",
+    "  petforge service install [--lan] [--port=N] [--collect-port=N] [--host=IP] [--token=XXX] [--forward=URL] [--name=NAME]",
+    "  petforge service uninstall [--name=NAME]",
+    "  petforge service status [--name=NAME]",
     "",
     "User-mode only. PetForge auto-starts at user login on Windows / macOS / Linux.",
     "",
