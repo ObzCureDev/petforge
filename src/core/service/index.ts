@@ -3,7 +3,14 @@ import { MacOSServiceManager } from "./macos.js";
 import type { ServiceManager } from "./types.js";
 import { WindowsServiceManager } from "./windows.js";
 
-export type { InstallResult, ServiceArgs, ServiceManager, ServiceState, StatusResult, UninstallResult } from "./types.js";
+export type {
+  InstallResult,
+  ServiceArgs,
+  ServiceManager,
+  ServiceState,
+  StatusResult,
+  UninstallResult,
+} from "./types.js";
 
 export function getServiceManager(): ServiceManager {
   switch (process.platform) {
