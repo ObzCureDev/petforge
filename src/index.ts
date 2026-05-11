@@ -12,6 +12,7 @@ import { doctorCli } from "./commands/doctor.js";
 import { hookCli } from "./commands/hook.js";
 import { initCli } from "./commands/init.js";
 import { serveCli } from "./commands/serve.js";
+import { serviceCli } from "./commands/service.js";
 import { upCli } from "./commands/up.js";
 import { watchCli } from "./commands/watch.js";
 
@@ -52,6 +53,8 @@ async function main(): Promise<number> {
     console.log(
       "              (--port=N --collect-port=N --lan --host=IP --token=XXX --forward=URL)",
     );
+    console.log("  service     Manage auto-start (install / uninstall / status)");
+    console.log("              See `petforge service --help` for flags.");
     console.log("  hook        Internal: process a Claude Code hook event from stdin");
     console.log("  --version   Show version");
     return 0;
@@ -88,6 +91,9 @@ async function main(): Promise<number> {
   }
   if (cmd === "up") {
     return await upCli(args.slice(1));
+  }
+  if (cmd === "service") {
+    return await serviceCli(args.slice(1));
   }
   if (cmd === "hook") {
     return await hookCli(args.slice(1));
