@@ -183,4 +183,62 @@ describe("runDoctor", () => {
     // Without OTel, exit should still be 0 since hooks/state pass.
     expect(result.exitCode).toBe(0);
   });
+
+  it("includes a warning-level 'Auto-start service' check when not installed", async () => {
+    // Settings file must exist + contain hooks-ish JSON so earlier critical checks don't short-circuit weirdly.
+    const settingsDir = path.join(dir, ".claude");
+    await fs.mkdir(settingsDir, { recursive: true });
+    await fs.writeFile(path.join(settingsDir, "settings.json"), "{}", "utf8");
+
+    // Mock the service factory before re-importing runDoctor.
+    vi.doMock("../src/core/service/index.js", () => ({
+      getServiceManager: () => ({
+        install: async () => {
+          throw new Error("unused");
+        },
+        uninstall: async () => {
+          throw new Error("unused");
+        },
+        status: async () => ({ state: "not-installed", manifestPath: null }),
+      }),
+    }));
+
+    const { runDoctor } = await import("../src/commands/doctor.js");
+    const result = await runDoctor();
+    const svc = result.checks.find((c) => c.name.includes("Auto-start service"));
+    expect(svc).toBeDefined();
+    expect(svc?.warning).toBe(true);
+    expect(svc?.ok).toBe(false);
+    // Warning checks must not flip exit code to 1 (unless something else also failed).
+    // We don't assert exitCode here because earlier critical checks may already have failed.
+
+    vi.doUnmock("../src/core/service/index.js");
+  });
+
+  it("'Auto-start service' check is OK (no warning) when installed and running", async () => {
+    const settingsDir = path.join(dir, ".claude");
+    await fs.mkdir(settingsDir, { recursive: true });
+    await fs.writeFile(path.join(settingsDir, "settings.json"), "{}", "utf8");
+
+    vi.doMock("../src/core/service/index.js", () => ({
+      getServiceManager: () => ({
+        install: async () => {
+          throw new Error("unused");
+        },
+        uninstall: async () => {
+          throw new Error("unused");
+        },
+        status: async () => ({ state: "installed-running", manifestPath: "/tmp/some.plist" }),
+      }),
+    }));
+
+    const { runDoctor } = await import("../src/commands/doctor.js");
+    const result = await runDoctor();
+    const svc = result.checks.find((c) => c.name.includes("Auto-start service"));
+    expect(svc).toBeDefined();
+    expect(svc?.ok).toBe(true);
+    expect(svc?.warning).not.toBe(true);
+
+    vi.doUnmock("../src/core/service/index.js");
+  });
 });

@@ -91,6 +91,28 @@ export async function runDoctor(): Promise<{ checks: CheckResult[]; exitCode: nu
   // hooks not firing on this Claude Code version). Warning, never critical.
   checks.push(await checkSessionHooksFiring());
 
+  // Auto-start service (warning if not installed — purely optional).
+  try {
+    const { getServiceManager } = await import("../core/service/index.js");
+    const s = await getServiceManager().status();
+    checks.push({
+      name: "Auto-start service",
+      ok: s.state === "installed-running" || s.state === "installed-stopped",
+      warning: s.state === "not-installed",
+      detail:
+        s.state === "not-installed"
+          ? "Run `petforge service install --lan` to auto-start on login"
+          : `state: ${s.state}`,
+    });
+  } catch (err) {
+    checks.push({
+      name: "Auto-start service",
+      ok: false,
+      warning: true,
+      detail: `cannot query service: ${(err as Error).message}`,
+    });
+  }
+
   const criticalFails = checks.filter((c) => !c.ok && !c.warning);
   return { checks, exitCode: criticalFails.length === 0 ? 0 : 1 };
 }
