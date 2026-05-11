@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.6.0 - 2026-05-11
+
+### Features
+
+- **`petforge service install | uninstall | status`** — manage OS-native auto-start (user-mode) across Windows (Scheduled Task), macOS (LaunchAgent), and Linux (systemd `--user`). No admin or sudo required on any platform. Idempotent install (re-running updates the manifest). On Linux, a hint about `loginctl enable-linger` is printed for users who want the service to keep running while logged out.
+- `petforge doctor` now reports auto-start service state as a warning-level check (optional, never critical).
+
+### Internal
+
+- New `src/core/service/` module exposing a per-platform `ServiceManager` interface and a `getServiceManager()` factory. All filesystem and process-spawn IO flows through a per-platform `exec` indirection object so the manager methods are unit-testable without invoking real `schtasks.exe` / `launchctl` / `systemctl`.
+
+### Known limitations
+
+- **Windows non-English locale**: `petforge service status` parses `schtasks` output and currently only recognizes English locale strings (`Status: Running`). On a non-English Windows host, a running task is reported as `installed-stopped`. `install` and `uninstall` are unaffected. Locale-independent detection (PowerShell `Get-ScheduledTask`) is planned for V3.6.1.
+
 ## 3.5.3 - 2026-05-03
 
 **Two-tier prune + marathon medals saved before deletion + backfill

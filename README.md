@@ -130,6 +130,34 @@ XP / levels / achievements / activity counters stay PetForge-driven.
 
 ---
 
+## Auto-start on login
+
+Run PetForge as a user-mode service that comes up automatically when you log in. No admin or sudo required.
+
+```bash
+petforge service install --lan      # same flags as `petforge up`
+petforge service status             # check whether it's installed/running
+petforge service uninstall          # remove the auto-start hook
+```
+
+Behind the scenes:
+
+| OS      | Mechanism                                    | Location                                                       |
+|---------|----------------------------------------------|----------------------------------------------------------------|
+| Windows | Scheduled Task (logon trigger)               | `schtasks /TN PetForge`                                        |
+| macOS   | launchd LaunchAgent                          | `~/Library/LaunchAgents/com.mindvisionstudio.petforge.plist`   |
+| Linux   | systemd `--user` unit                        | `~/.config/systemd/user/petforge.service`                      |
+
+On Linux, if you want PetForge to keep running while you're logged out, run once (requires sudo):
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+> **Note (Windows non-English locale):** `petforge service status` parses `schtasks` output and currently only recognizes English locale strings. On a non-English Windows host, a running task will be reported as `installed-stopped` instead of `installed-running`. The install / uninstall flows are unaffected. Locale-independent status detection is planned for V3.6.1.
+
+---
+
 ## How it works
 
 ```
