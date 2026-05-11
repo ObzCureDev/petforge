@@ -1,4 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
+
+const originalPlatform = process.platform;
+
+afterAll(() => {
+  Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
+});
 
 describe("getServiceManager", () => {
   it("returns the Windows manager on win32", async () => {
