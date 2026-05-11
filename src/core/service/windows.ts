@@ -216,7 +216,7 @@ export class WindowsServiceManager implements ServiceManager {
     if (result.exitCode !== 0) {
       return { state: "not-installed", manifestPath: null };
     }
-    const running = /Status:\s*Running/i.test(result.stdout) || /0x41303/.test(result.stdout);
+    const running = /^Status:\s*Running/im.test(result.stdout);
     return {
       state: running ? "installed-running" : "installed-stopped",
       manifestPath: manifestPath(),

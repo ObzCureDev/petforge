@@ -145,6 +145,22 @@ describe("WindowsServiceManager.status", () => {
     const s = await mgr.status();
     expect(s.state).toBe("installed-stopped");
   });
+
+  it("returns 'installed-stopped' when Ready coexists with a prior 0x41303 Last Result", async () => {
+    // Regression: 0x41303 is the exit code Task Scheduler reports for the
+    // "task is currently running" state via `Last Result`, but it can linger
+    // from a previous run even when the current Status is Ready. The status
+    // detection must only key off the line-anchored `Status:` line, not any
+    // occurrence of 0x41303 anywhere in the output.
+    vi.spyOn(winMod.exec, "runCommand").mockResolvedValue({
+      exitCode: 0,
+      stdout: "TaskName: \\PetForge\nStatus: Ready\nLast Result: 0x41303\n",
+      stderr: "",
+    });
+    const mgr = new winMod.WindowsServiceManager();
+    const s = await mgr.status();
+    expect(s.state).toBe("installed-stopped");
+  });
 });
 
 describe("WindowsServiceManager.uninstall", () => {
