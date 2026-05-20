@@ -23,6 +23,7 @@ import { rarityColor } from "../rarity-color.js";
 import { AchievementGrid } from "./AchievementGrid.js";
 import { ActivityBlock } from "./ActivityBlock.js";
 import { PetRenderer } from "./PetRenderer.js";
+import { QuotaBlock } from "./QuotaBlock.js";
 import { StatBar } from "./StatBar.js";
 import { XpBar } from "./XpBar.js";
 
@@ -81,6 +82,7 @@ export function CardView({ state, frameIndex = 0 }: CardViewProps): React.ReactE
               <StatBar name="SNARK" value={pet.stats.snark} />
             </>
           )}
+          <QuotaBlock quota={state.counters.quota} />
           <Text> </Text>
           <Text bold>ACHIEVEMENTS</Text>
           <AchievementGrid unlocked={achievements.unlocked} />
