@@ -60,7 +60,7 @@ describe("quota/apply", () => {
       applyProbeResult(q, mkOk(i * 5, 100), i * 60_000);
     }
     expect(q.recentSamples).toHaveLength(3);
-    expect(q.recentSamples[0].utilization).toBe(10); // 0,1 dropped
+    expect(q.recentSamples[0]?.utilization).toBe(10); // 0,1 dropped
   });
 
   it("increments consecutiveEfficient when 5h window closes with util < 50", () => {

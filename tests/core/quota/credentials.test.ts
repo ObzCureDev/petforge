@@ -51,7 +51,8 @@ describe("quota/credentials", () => {
     const tok = await resolveOAuthToken({
       credentialsPath: path.join(tmp, "absent.json"),
       platform: "darwin",
-      execImpl: exec,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock
+      execImpl: exec as any,
     });
     expect(tok).toEqual({ kind: "ok", token: "sk-keychain", source: "keychain" });
     expect(exec).toHaveBeenCalledOnce();
@@ -64,7 +65,8 @@ describe("quota/credentials", () => {
     const tok = await resolveOAuthToken({
       credentialsPath: path.join(tmp, "absent.json"),
       platform: "darwin",
-      execImpl: exec,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock
+      execImpl: exec as any,
     });
     expect(tok.kind).toBe("missing");
   });

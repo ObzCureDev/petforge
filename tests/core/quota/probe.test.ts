@@ -55,8 +55,8 @@ describe("quota/probe", () => {
 
   it("sends Authorization: Bearer + required headers + minimal body", async () => {
     const captured: { url?: string; init?: RequestInit } = {};
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      captured.url = url;
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      captured.url = typeof url === "string" ? url : url.toString();
       captured.init = init;
       return mkResponse({ status: 401 });
     });
@@ -125,7 +125,7 @@ describe("quota/probe", () => {
 
   it("respects timeoutMs by aborting", async () => {
     const fetchImpl = vi.fn(
-      (_url: string, init?: RequestInit) =>
+      (_url: string | URL | Request, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
         }),
