@@ -147,6 +147,14 @@ export const ACHIEVEMENT_IDS = [
   "picky_50",
   "picky_250",
   "picky_1k",
+  // Quota efficient (3 - V3.7, OTel-style optional)
+  "quota_efficient_bronze",
+  "quota_efficient_silver",
+  "quota_efficient_gold",
+  // Quota marathon (3 - V3.7, OTel-style optional)
+  "quota_marathon_bronze",
+  "quota_marathon_silver",
+  "quota_marathon_gold",
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
 

@@ -405,6 +405,48 @@ export const ACHIEVEMENTS: Readonly<Record<AchievementId, AchievementDef>> = {
     description: "Reject 1,000+ proposed edits during review.",
     medal: "gold",
   },
+  quota_efficient_bronze: {
+    id: "quota_efficient_bronze",
+    name: "Quota Efficient · Bronze",
+    xp: 500,
+    description: "Close 5 consecutive 5h windows with under 50% utilization.",
+    medal: "bronze",
+  },
+  quota_efficient_silver: {
+    id: "quota_efficient_silver",
+    name: "Quota Efficient · Silver",
+    xp: 2_000,
+    description: "Close 20 consecutive 5h windows with under 50% utilization.",
+    medal: "silver",
+  },
+  quota_efficient_gold: {
+    id: "quota_efficient_gold",
+    name: "Quota Efficient · Gold",
+    xp: 10_000,
+    description: "Close 100 consecutive 5h windows with under 50% utilization.",
+    medal: "gold",
+  },
+  quota_marathon_bronze: {
+    id: "quota_marathon_bronze",
+    name: "Quota Marathon · Bronze",
+    xp: 300,
+    description: "Hit 95%+ session utilization once.",
+    medal: "bronze",
+  },
+  quota_marathon_silver: {
+    id: "quota_marathon_silver",
+    name: "Quota Marathon · Silver",
+    xp: 1_500,
+    description: "Hit 95%+ session utilization 10 times.",
+    medal: "silver",
+  },
+  quota_marathon_gold: {
+    id: "quota_marathon_gold",
+    name: "Quota Marathon · Gold",
+    xp: 7_500,
+    description: "Hit 95%+ session utilization 50 times.",
+    medal: "gold",
+  },
 } as const;
 
 // ---------- Core helpers ----------
