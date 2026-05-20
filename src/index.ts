@@ -11,6 +11,7 @@ import { defaultCli } from "./commands/default.js";
 import { doctorCli } from "./commands/doctor.js";
 import { hookCli } from "./commands/hook.js";
 import { initCli } from "./commands/init.js";
+import { quotaCli } from "./commands/quota.js";
 import { serveCli } from "./commands/serve.js";
 import { serviceCli } from "./commands/service.js";
 import { upCli } from "./commands/up.js";
@@ -49,6 +50,8 @@ async function main(): Promise<number> {
     console.log("              (--port=7878 --lan --host=IP --token=XXX)");
     console.log("  collect     Run the OTLP collector (foreground daemon, port 7879)");
     console.log("              (--port=N --forward=URL)");
+    console.log("  quota       Show Claude Code rate-limit usage (5h + 7d)");
+    console.log("              (enable | disable | --json)");
     console.log("  up          Start collect + serve in one process (recommended)");
     console.log(
       "              (--port=N --collect-port=N --lan --host=IP --token=XXX --forward=URL)",
@@ -88,6 +91,9 @@ async function main(): Promise<number> {
   }
   if (cmd === "collect") {
     return await collectCli(args.slice(1));
+  }
+  if (cmd === "quota") {
+    return await quotaCli(args.slice(1));
   }
   if (cmd === "up") {
     return await upCli(args.slice(1));
