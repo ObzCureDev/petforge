@@ -19,6 +19,7 @@
 
 import os from "node:os";
 import { startCollector } from "./collect.js";
+import { runQuotaDaemon } from "./quota.js";
 import { startServer } from "./serve.js";
 
 interface UpOptions {
@@ -28,13 +29,14 @@ interface UpOptions {
   host?: string;
   token?: string;
   forward?: string;
+  quota?: boolean;
 }
 
 export async function upCli(argv: string[]): Promise<number> {
   const opts = parseArgs(argv);
   if (!opts) {
     process.stderr.write(
-      "Usage: petforge up [--port=N] [--collect-port=N] [--lan] [--host=IP] [--token=XXX] [--forward=URL]\n",
+      "Usage: petforge up [--port=N] [--collect-port=N] [--lan] [--host=IP] [--token=XXX] [--forward=URL] [--quota]\n",
     );
     return 1;
   }
@@ -96,6 +98,20 @@ export async function upCli(argv: string[]): Promise<number> {
     return 1;
   }
 
+  // 3. Optional quota daemon - co-orchestrate with the rest.
+  let quota: { close: () => Promise<void> } | null = null;
+  if (opts.quota) {
+    try {
+      quota = await runQuotaDaemon();
+      process.stdout.write("[quota]   probe loop active (every 5 min when JSONL is fresh)\n");
+    } catch (err) {
+      process.stderr.write(`[quota]   failed to start: ${(err as Error).message}\n`);
+      await server.close();
+      await collector.close();
+      return 1;
+    }
+  }
+
   process.stdout.write("[up]      Ctrl+C to stop both.\n");
 
   await new Promise<void>((resolve) => {
@@ -104,7 +120,9 @@ export async function upCli(argv: string[]): Promise<number> {
       if (stopping) return;
       stopping = true;
       process.stdout.write("\n[up]      shutting down...\n");
-      Promise.allSettled([server.close(), collector.close()]).finally(() => resolve());
+      const tasks: Promise<unknown>[] = [server.close(), collector.close()];
+      if (quota) tasks.push(quota.close());
+      Promise.allSettled(tasks).finally(() => resolve());
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
@@ -139,6 +157,8 @@ function parseArgs(argv: string[]): UpOptions | null {
       const f = a.slice("--forward=".length);
       if (f.length === 0) return null;
       opts.forward = f;
+    } else if (a === "--quota") {
+      opts.quota = true;
     } else if (a === "--help" || a === "-h") {
       return null;
     } else {
