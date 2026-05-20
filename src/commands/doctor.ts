@@ -9,6 +9,7 @@
 import { promises as fs } from "node:fs";
 import { detectBuddy, isClaudeOnPath } from "../core/buddy.js";
 import { CLAUDE_SETTINGS_FILE, STATE_FILE } from "../core/paths.js";
+import { resolveOAuthToken } from "../core/quota/credentials.js";
 import { readState, StateCorruptError, StateNotFoundError } from "../core/state.js";
 import {
   ClaudeSettingsInvalidJsonError,
@@ -86,6 +87,9 @@ export async function runDoctor(): Promise<{ checks: CheckResult[]; exitCode: nu
   checks.push(await checkOtelEnv());
   checks.push(await checkCollectorReachable());
   checks.push(await checkRecentOtelIngest());
+
+  // V3.7 — quota tracking checks. All warnings, never critical.
+  for (const c of await checkQuota()) checks.push(c);
 
   // V2.0.1 — detect "many prompts but 0 sessions" pattern (SessionStart/End
   // hooks not firing on this Claude Code version). Warning, never critical.
@@ -184,6 +188,88 @@ async function checkCollectorReachable(): Promise<CheckResult> {
       detail: "run `petforge collect`",
     };
   }
+}
+
+async function checkQuota(): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  let optIn = false;
+  let lastProbeTs = 0;
+  let lastProbeOk = false;
+  let lastError: string | undefined;
+  try {
+    const state = await readState();
+    const q = state.counters.quota;
+    if (q) {
+      optIn = q.optIn;
+      lastProbeTs = q.lastProbeTs;
+      lastProbeOk = q.lastProbeOk;
+      lastError = q.lastError;
+    }
+  } catch {
+    // State unreadable - other checks will surface the underlying issue.
+    return results;
+  }
+
+  if (!optIn) {
+    results.push({
+      name: "Quota tracking",
+      ok: false,
+      warning: true,
+      detail: "disabled (run `petforge quota enable` to opt in)",
+    });
+    return results;
+  }
+
+  const tok = await resolveOAuthToken();
+  if (tok.kind !== "ok") {
+    results.push({
+      name: "Quota credentials",
+      ok: false,
+      warning: true,
+      detail: `${tok.kind} - re-login to Claude Code`,
+    });
+  } else {
+    results.push({
+      name: "Quota credentials",
+      ok: true,
+      detail: `available (${tok.source})`,
+    });
+  }
+
+  if (lastProbeTs === 0) {
+    results.push({
+      name: "Quota last probe",
+      ok: false,
+      warning: true,
+      detail: "never",
+    });
+    return results;
+  }
+
+  const ageMin = (Date.now() - lastProbeTs) / 60_000;
+  const ageLabel = `${ageMin.toFixed(1)} min ago`;
+  if (!lastProbeOk) {
+    results.push({
+      name: "Quota last probe",
+      ok: false,
+      warning: true,
+      detail: `failed (${ageLabel}): ${lastError ?? "?"}`,
+    });
+  } else if (ageMin > 15) {
+    results.push({
+      name: "Quota last probe",
+      ok: false,
+      warning: true,
+      detail: `stale (${ageLabel})`,
+    });
+  } else {
+    results.push({
+      name: "Quota last probe",
+      ok: true,
+      detail: ageLabel,
+    });
+  }
+  return results;
 }
 
 async function checkRecentOtelIngest(): Promise<CheckResult> {
