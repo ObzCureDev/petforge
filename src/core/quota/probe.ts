@@ -78,8 +78,12 @@ export async function probe(token: string, opts: ProbeOptions = {}): Promise<Pro
     return { kind: "server-error", httpStatus: response.status };
   }
 
+  // Anthropic returns utilization as a ratio in [0, 1] (e.g. "0.07" for 7%).
+  // We normalize to a percentage 0-100 here so the rest of the codebase
+  // (mood thresholds, rendering, achievements) consumes a single, intuitive
+  // unit. Multiplied at the boundary, never re-normalized downstream.
   const session5h: QuotaWindow = {
-    utilization: Number.parseFloat(u5),
+    utilization: Number.parseFloat(u5) * 100,
     resetTs: Number.parseInt(r5, 10),
   };
 
@@ -87,7 +91,7 @@ export async function probe(token: string, opts: ProbeOptions = {}): Promise<Pro
   const r7 = response.headers.get("anthropic-ratelimit-unified-7d-reset");
   const weekly7d: QuotaWindow | null =
     u7 !== null && r7 !== null
-      ? { utilization: Number.parseFloat(u7), resetTs: Number.parseInt(r7, 10) }
+      ? { utilization: Number.parseFloat(u7) * 100, resetTs: Number.parseInt(r7, 10) }
       : null;
 
   return { kind: "ok", session5h, weekly7d, status: s5 ?? "" };

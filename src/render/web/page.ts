@@ -83,15 +83,6 @@ export function renderPage(state: State | null): string {
     <div class="kv-row"><span class="kv-label">Trait:</span><span class="kv-value" id="trait"></span></div>
     <div class="kv-row"><span class="kv-label">Next evolution:</span><span class="kv-value" id="next-evo"></span></div>
   </section>
-  <section class="card run-card">
-    <p class="card-label">Current Run</p>
-    <p class="run-line"><span class="run-prefix">RUN</span><span id="activity" class="activity"></span></p>
-    <p class="run-line" id="otel-row"><span class="run-prefix">DEV</span><span id="otel-activity" class="activity"></span></p>
-  </section>
-  <section class="card stats-card">
-    <p class="card-label">Stats</p>
-    <div id="stats"></div>
-  </section>
   <section class="card quotas-card" id="quotas-card" hidden>
     <p class="card-label">Quotas</p>
     <div class="quota-row" id="quota-5h-row">
@@ -106,6 +97,15 @@ export function renderPage(state: State | null): string {
       <span class="quota-pct" id="quota-7d-pct">--%</span>
     </div>
     <p class="quota-meta" id="quota-7d-meta"></p>
+  </section>
+  <section class="card run-card">
+    <p class="card-label">Current Run</p>
+    <p class="run-line"><span class="run-prefix">RUN</span><span id="activity" class="activity"></span></p>
+    <p class="run-line" id="otel-row"><span class="run-prefix">DEV</span><span id="otel-activity" class="activity"></span></p>
+  </section>
+  <section class="card stats-card">
+    <p class="card-label">Stats</p>
+    <div id="stats"></div>
   </section>
   <section class="card goals-card" id="goals-card" hidden>
     <p class="card-label">Next Goals</p>

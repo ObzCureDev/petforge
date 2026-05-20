@@ -18,10 +18,11 @@ describe("quota/probe", () => {
       mkResponse({
         status: 200,
         headers: {
-          "anthropic-ratelimit-unified-5h-utilization": "59",
+          // Anthropic ships utilization as a 0-1 ratio; probe.ts multiplies by 100.
+          "anthropic-ratelimit-unified-5h-utilization": "0.59",
           "anthropic-ratelimit-unified-5h-reset": "1700000500",
           "anthropic-ratelimit-unified-5h-status": "allowed",
-          "anthropic-ratelimit-unified-7d-utilization": "20",
+          "anthropic-ratelimit-unified-7d-utilization": "0.20",
           "anthropic-ratelimit-unified-7d-reset": "1700600000",
         },
       }),
@@ -40,7 +41,7 @@ describe("quota/probe", () => {
       mkResponse({
         status: 200,
         headers: {
-          "anthropic-ratelimit-unified-5h-utilization": "10",
+          "anthropic-ratelimit-unified-5h-utilization": "0.10",
           "anthropic-ratelimit-unified-5h-reset": "1700000500",
           "anthropic-ratelimit-unified-5h-status": "allowed",
         },

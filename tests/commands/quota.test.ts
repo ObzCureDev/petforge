@@ -61,7 +61,8 @@ describe("petforge quota CLI", () => {
         new Response("{}", {
           status: 200,
           headers: {
-            "anthropic-ratelimit-unified-5h-utilization": "10",
+            // Anthropic ships utilization as a 0-1 ratio; probe.ts multiplies by 100.
+            "anthropic-ratelimit-unified-5h-utilization": "0.10",
             "anthropic-ratelimit-unified-5h-reset": "1700000500",
             "anthropic-ratelimit-unified-5h-status": "allowed",
           },

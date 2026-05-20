@@ -60,7 +60,8 @@ describe("runQuotaDaemon", () => {
         new Response("{}", {
           status: 200,
           headers: {
-            "anthropic-ratelimit-unified-5h-utilization": "42",
+            // Anthropic ships utilization as a 0-1 ratio; probe.ts multiplies by 100.
+            "anthropic-ratelimit-unified-5h-utilization": "0.42",
             "anthropic-ratelimit-unified-5h-reset": "1700000500",
             "anthropic-ratelimit-unified-5h-status": "allowed",
           },
@@ -119,7 +120,7 @@ describe("runQuotaDaemon", () => {
         new Response("{}", {
           status: 200,
           headers: {
-            "anthropic-ratelimit-unified-5h-utilization": "1",
+            "anthropic-ratelimit-unified-5h-utilization": "0.01",
             "anthropic-ratelimit-unified-5h-reset": "1",
             "anthropic-ratelimit-unified-5h-status": "allowed",
           },
