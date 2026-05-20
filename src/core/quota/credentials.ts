@@ -9,10 +9,10 @@
  *     -s "Claude Code-credentials" -a $USER -w`
  */
 
+import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileP = promisify(execFile);

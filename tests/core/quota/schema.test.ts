@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createInitialQuota,
-  QuotaStateSchema,
   type QuotaState,
+  QuotaStateSchema,
 } from "../../../src/core/quota/schema.js";
 
 describe("quota/schema", () => {
@@ -51,11 +51,11 @@ describe("quota/schema", () => {
   });
 });
 
-import { readState, withStateLock } from "../../../src/core/state.js";
-import { generatePet } from "../../../src/core/pet-engine.js";
-import { createInitialState } from "../../../src/core/schema.js";
 import { promises as fs } from "node:fs";
 import { STATE_FILE } from "../../../src/core/paths.js";
+import { generatePet } from "../../../src/core/pet-engine.js";
+import { createInitialState } from "../../../src/core/schema.js";
+import { readState, withStateLock } from "../../../src/core/state.js";
 
 describe("quota state round-trip", () => {
   it("legacy state without quota block parses and synthesizes one", async () => {

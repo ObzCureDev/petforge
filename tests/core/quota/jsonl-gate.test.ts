@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { shouldProbe } from "../../../src/core/quota/jsonl-gate.js";
 
 describe("quota/jsonl-gate", () => {

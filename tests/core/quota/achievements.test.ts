@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { generatePet } from "../../../src/core/pet-engine.js";
 import { checkQuotaAchievements } from "../../../src/core/quota/achievements.js";
 import { createInitialState } from "../../../src/core/schema.js";
-import { generatePet } from "../../../src/core/pet-engine.js";
 import { ensureQuotaCounters } from "../../../src/core/state.js";
 
 function freshState() {

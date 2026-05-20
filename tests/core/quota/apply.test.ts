@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyProbeResult } from "../../../src/core/quota/apply.js";
-import { createInitialQuota } from "../../../src/core/quota/schema.js";
 import type { ProbeResult } from "../../../src/core/quota/probe.js";
+import { createInitialQuota } from "../../../src/core/quota/schema.js";
 
 describe("quota/apply", () => {
   it("sets session/weekly + status + ts on success", () => {

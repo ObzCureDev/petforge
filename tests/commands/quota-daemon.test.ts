@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let testHome: string;
 let prevHome: string | undefined;

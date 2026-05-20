@@ -7,11 +7,7 @@
 
 import { z } from "zod";
 import { createInitialOtelCounters, type OtelCounters, OtelCountersSchema } from "./otel/schema.js";
-import {
-  createInitialQuota,
-  type QuotaState,
-  QuotaStateSchema,
-} from "./quota/schema.js";
+import { createInitialQuota, type QuotaState, QuotaStateSchema } from "./quota/schema.js";
 
 // ---------- Enums ----------
 

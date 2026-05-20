@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { render } from "ink-testing-library";
 import React from "react";
-import { QuotaBlock } from "../../src/render/components/QuotaBlock.js";
+import { describe, expect, it } from "vitest";
 import { createInitialQuota } from "../../src/core/quota/schema.js";
+import { QuotaBlock } from "../../src/render/components/QuotaBlock.js";
 
 describe("QuotaBlock", () => {
   it("renders nothing when quota is undefined", () => {
@@ -11,9 +11,7 @@ describe("QuotaBlock", () => {
   });
 
   it("renders nothing when opt-out", () => {
-    const { lastFrame } = render(
-      React.createElement(QuotaBlock, { quota: createInitialQuota(0) }),
-    );
+    const { lastFrame } = render(React.createElement(QuotaBlock, { quota: createInitialQuota(0) }));
     expect(lastFrame()).toBe("");
   });
 

@@ -8,7 +8,7 @@
  */
 
 import type { ProbeResult } from "./probe.js";
-import type { QuotaState, QuotaSample } from "./schema.js";
+import type { QuotaSample, QuotaState } from "./schema.js";
 
 const SAMPLE_RING_SIZE = 3;
 const EFFICIENT_THRESHOLD = 50;

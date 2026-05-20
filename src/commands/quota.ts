@@ -6,9 +6,9 @@
  * `runQuotaDaemon` so `up.ts` can co-orchestrate it with collect + serve.
  */
 
-import { applyProbeResult } from "../core/quota/apply.js";
 import { checkQuotaAchievements } from "../core/quota/achievements.js";
-import { resolveOAuthToken, type ResolveResult } from "../core/quota/credentials.js";
+import { applyProbeResult } from "../core/quota/apply.js";
+import { type ResolveResult, resolveOAuthToken } from "../core/quota/credentials.js";
 import { defaultProjectsDir, shouldProbe } from "../core/quota/jsonl-gate.js";
 import { probe } from "../core/quota/probe.js";
 import { createInitialQuota, type QuotaState } from "../core/quota/schema.js";
