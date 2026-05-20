@@ -9,6 +9,7 @@
 import { applyProbeResult } from "../core/quota/apply.js";
 import { checkQuotaAchievements } from "../core/quota/achievements.js";
 import { resolveOAuthToken, type ResolveResult } from "../core/quota/credentials.js";
+import { defaultProjectsDir, shouldProbe } from "../core/quota/jsonl-gate.js";
 import { probe } from "../core/quota/probe.js";
 import { createInitialQuota, type QuotaState } from "../core/quota/schema.js";
 import { ensureQuotaCounters, withStateLock } from "../core/state.js";
@@ -131,4 +132,85 @@ function probeErrShort(r: { kind: string; httpStatus?: number; cause?: string })
   if (r.kind === "server-error") return `HTTP ${r.httpStatus} - Anthropic server error`;
   if (r.kind === "network-error") return `network: ${r.cause}`;
   return r.kind;
+}
+
+// ---------- Daemon ----------
+
+export interface QuotaDaemonOptions extends QuotaCliDeps {
+  projectsDir?: string;
+  probeIntervalMs?: number;
+  probeGateMs?: number;
+}
+
+export interface QuotaDaemonHandle {
+  close: () => Promise<void>;
+}
+
+const DEFAULT_PROBE_INTERVAL_MS = 5 * 60_000;
+const DEFAULT_PROBE_GATE_MS = 10 * 60_000;
+
+export async function runQuotaDaemon(opts: QuotaDaemonOptions = {}): Promise<QuotaDaemonHandle> {
+  const resolve = opts.resolveToken ?? resolveOAuthToken;
+  const projectsDir = opts.projectsDir ?? defaultProjectsDir();
+  const interval = opts.probeIntervalMs ?? DEFAULT_PROBE_INTERVAL_MS;
+  const gate = opts.probeGateMs ?? DEFAULT_PROBE_GATE_MS;
+  const nowFn = opts.now ?? (() => Date.now());
+
+  let stopped = false;
+  let timer: NodeJS.Timeout | null = null;
+
+  const tick = async (): Promise<void> => {
+    if (stopped) return;
+    try {
+      // Re-read opt-in each tick - user may have disabled at runtime.
+      let optIn = false;
+      await withStateLock(async (s) => {
+        ensureQuotaCounters(s);
+        optIn = s.counters.quota?.optIn === true;
+      });
+      if (!optIn) return;
+
+      const gateOk = await shouldProbe({
+        projectsDir,
+        now: nowFn(),
+        gateMs: gate,
+      });
+      if (!gateOk) return;
+
+      const tok = await resolve();
+      if (tok.kind !== "ok") {
+        await withStateLock(async (s) => {
+          ensureQuotaCounters(s);
+          const q = s.counters.quota;
+          if (!q) return;
+          q.lastProbeOk = false;
+          q.lastError = tok.kind === "missing" ? "credentials missing" : "credentials malformed";
+          q.lastProbeTs = nowFn();
+        });
+        return;
+      }
+      const r = await probe(tok.token, { fetchImpl: opts.fetchImpl });
+      await withStateLock(async (s) => {
+        ensureQuotaCounters(s);
+        const q = s.counters.quota;
+        if (!q) return;
+        applyProbeResult(q, r, nowFn());
+        checkQuotaAchievements(s);
+      });
+    } catch {
+      // never throw out of the tick - the daemon must survive transient errors
+    } finally {
+      if (!stopped) timer = setTimeout(tick, interval);
+    }
+  };
+
+  // First tick fires immediately so `up --quota` shows numbers fast.
+  timer = setTimeout(tick, 0);
+
+  return {
+    close: async (): Promise<void> => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    },
+  };
 }
