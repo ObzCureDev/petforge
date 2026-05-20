@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-3.4.0-blue" alt="Version"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-3.7.0-blue" alt="Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="Node ≥ 20"></a>
 </p>
@@ -77,6 +77,7 @@ Code in Claude Code — hooks fire automatically, your pet evolves.
 | **`petforge up [--lan] [--host=IP] [--port=N] [--collect-port=N] [--token=XXX] [--forward=URL]`** | **Recommended.** Starts collect + serve in a single process, single Ctrl+C kills both |
 | `petforge buddy [on\|off\|auto]` | Toggle Claude Buddy visual integration |
 | `petforge buddy import [--from=FILE] [--clear]` | Pin a Buddy ASCII as your pet's visual (stdin or file) |
+| `petforge quota [enable\|disable\|--json]` | Show / configure Claude Code rate-limit tracking (opt-in, V3.7) |
 
 ---
 
@@ -155,6 +156,31 @@ sudo loginctl enable-linger "$USER"
 ```
 
 > **Note (Windows non-English locale):** `petforge service status` parses `schtasks` output and currently only recognizes English locale strings. On a non-English Windows host, a running task will be reported as `installed-stopped` instead of `installed-running`. The install / uninstall flows are unaffected. Locale-independent status detection is planned for V3.6.1.
+
+---
+
+## Quota tracking (opt-in, V3.7)
+
+PetForge can show your Claude Code 5h session and 7d weekly rate-limit usage directly in the web view and CLI card - same data the "Claude Code Gauge" extension family exposes, but without leaving PetForge.
+
+```bash
+petforge quota enable     # one-time opt-in (validates credentials)
+petforge up --quota       # collect + serve + quota daemon
+```
+
+The probe runs every 5 minutes, **only** when a Claude Code JSONL has been touched in the last 10 minutes. When you stop coding, PetForge stops calling Anthropic. Each probe consumes ~9 input tokens of `claude-haiku-4-5`.
+
+When session utilization crosses 80%, the pet's mood flips to "stressed"; at 95% (or status `denied`) it flips to "panic". Sustained efficient use unlocks the `quota_efficient_*` achievement family; hitting 95%+ unlocks `quota_marathon_*`.
+
+**Caveats:** the rate-limit response headers PetForge reads (`anthropic-ratelimit-unified-*`) are not part of Anthropic's documented API. This is an explicit opt-in for that reason. If Anthropic changes the shape, PetForge will fail soft (the QUOTAS card shows "stale" + the reason) and nothing else breaks.
+
+To disable:
+
+```bash
+petforge quota disable
+```
+
+Existing quota achievements stay unlocked when disabled.
 
 ---
 

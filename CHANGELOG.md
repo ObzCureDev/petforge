@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.7.0 - 2026-05-20
+
+### Features
+
+- **`petforge quota enable | disable | --json`** - opt-in 5h/7d rate-limit gauge surfaced inside PetForge. One-shot CLI subcommand.
+- **`petforge up --quota`** - co-orchestrates a probe daemon alongside collect + serve. Single Ctrl+C kills all three.
+- **Web view QUOTAS card** - Session (5h), Weekly (7d) when on Max, burn rate, and reset countdown. Color-coded green/yellow/orange/red.
+- **CLI card QuotaBlock** - `petforge card` gains a QUOTAS block when opt-in.
+- **Pet mood reactivity** - when session utilization >= 80%, the pet's mood flips to "stressed"; >= 95% or status `denied` flips to "panic". Falls back to the existing activity-derived mood when calm.
+- **2 new achievement families** (6 entries total): `quota_efficient_*` (close 5/20/100 consecutive 5h windows under 50% util) and `quota_marathon_*` (hit 95%+ session util 1/10/50 times). 46 -> 52 total achievements.
+- **`petforge doctor`** now reports quota credentials + last-probe freshness.
+
+### Internal
+
+- New `src/core/quota/` module: schema, credentials resolver (file-first + macOS keychain), HTTP probe, JSONL mtime gate, mood derivation, apply-result reducer, achievement evaluators.
+- New `src/commands/quota.ts` with both one-shot CLI handlers and the long-running `runQuotaDaemon` co-orchestrated by `petforge up --quota`.
+
+### Compatibility
+
+- **No state schema bump.** `state.counters.quota?` is additive; V3.6 state files migrate transparently via `ensureQuotaCounters`.
+
+### Notes
+
+- **JSONL-mtime gate** - when no `~/.claude/projects/**/*.jsonl` is touched for 10 min, the daemon skips its 5-min API call. Idle = zero cost.
+- **Security:** opt-in only. OAuth token is read into a local variable, never logged, never persisted to state. The endpoint used (`POST /v1/messages` with `oauth-2025-04-20` beta header) is **undocumented** by Anthropic and may change without notice - opt-in is the contract.
+
 ## 3.6.0 - 2026-05-11
 
 ### Features
