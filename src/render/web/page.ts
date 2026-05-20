@@ -92,6 +92,21 @@ export function renderPage(state: State | null): string {
     <p class="card-label">Stats</p>
     <div id="stats"></div>
   </section>
+  <section class="card quotas-card" id="quotas-card" hidden>
+    <p class="card-label">Quotas</p>
+    <div class="quota-row" id="quota-5h-row">
+      <span class="quota-label">Session (5h)</span>
+      <div class="quota-bar-track"><div class="quota-bar-fill" id="quota-5h-fill"></div></div>
+      <span class="quota-pct" id="quota-5h-pct">--%</span>
+    </div>
+    <p class="quota-meta" id="quota-5h-meta"></p>
+    <div class="quota-row" id="quota-7d-row" hidden>
+      <span class="quota-label">Weekly (7d)</span>
+      <div class="quota-bar-track"><div class="quota-bar-fill" id="quota-7d-fill"></div></div>
+      <span class="quota-pct" id="quota-7d-pct">--%</span>
+    </div>
+    <p class="quota-meta" id="quota-7d-meta"></p>
+  </section>
   <section class="card goals-card" id="goals-card" hidden>
     <p class="card-label">Next Goals</p>
     <div id="goals"></div>
@@ -225,6 +240,37 @@ const CSS = `
     overflow: hidden;
   }
   .stat-bar-fill { background: #2ea043; height: 100%; width: 0; transition: width 0.4s; }
+
+  /* Quotas card (V3.7) */
+  .quotas-card .quota-row {
+    display: grid;
+    grid-template-columns: 7rem 1fr 3rem;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.25rem;
+  }
+  .quotas-card .quota-label { font-size: 0.85rem; opacity: 0.85; }
+  .quotas-card .quota-bar-track {
+    height: 0.6rem;
+    background: rgba(255,255,255,0.08);
+    border-radius: 0.3rem;
+    overflow: hidden;
+  }
+  .quotas-card .quota-bar-fill {
+    height: 100%;
+    width: 0%;
+    transition: width 200ms ease, background 200ms ease;
+    background: #4ade80;
+  }
+  .quotas-card .quota-bar-fill.warn   { background: #facc15; }
+  .quotas-card .quota-bar-fill.high   { background: #fb923c; }
+  .quotas-card .quota-bar-fill.danger { background: #ef4444; }
+  .quotas-card .quota-pct { font-variant-numeric: tabular-nums; text-align: right; }
+  .quotas-card .quota-meta {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin: 0.2rem 0 0.4rem 7.5rem;
+  }
 
   /* Legacy ul/li (unused in V3.3 but kept harmless) */
   ul { list-style: none; padding: 0; margin: 0; }
@@ -582,6 +628,28 @@ const CLIENT_JS = `
     return String(n);
   }
 
+  // V3.7 - quota helpers
+  function bandClass(pct) {
+    if (pct >= 95) return 'danger';
+    if (pct >= 80) return 'high';
+    if (pct >= 60) return 'warn';
+    return '';
+  }
+  function formatResetIn(tsSec) {
+    var delta = tsSec - Math.floor(Date.now()/1000);
+    if (delta <= 0) return 'now';
+    var h = Math.floor(delta/3600), m = Math.floor((delta%3600)/60);
+    if (h >= 24) return 'in ' + Math.floor(h/24) + 'd ' + (h%24) + 'h';
+    if (h > 0)  return 'in ' + h + 'h ' + m + 'm';
+    return 'in ' + m + 'm';
+  }
+  function quotaMood(q) {
+    if (!q || !q.optIn || !q.lastProbeOk || !q.session5h) return 'calm';
+    if (q.session5h.utilization >= 95 || q.status === 'denied') return 'panic';
+    if (q.session5h.utilization >= 80 || q.status === 'allowed_warning') return 'stressed';
+    return 'calm';
+  }
+
   // Per-achievement progress used by the click-to-expand details. Mirrors the
   // unlock conditions in src/core/achievements.ts and src/core/otel/achievements.ts.
   function achievementProgress(id, s) {
@@ -822,8 +890,14 @@ const CLIENT_JS = `
     byId("level").textContent = String(s.progress.level);
     byId("shiny").hidden = !s.pet.shiny;
 
-    // V3.3 derived header rows.
-    byId("mood").textContent = computeMood(s, Date.now());
+    // V3.3 derived header rows. V3.7: quota mood wins when stressed/panic.
+    var moodFromActivity = computeMood(s, Date.now());
+    var quotaForMood = s.counters && s.counters.quota;
+    var moodFromQuota = quotaMood(quotaForMood);
+    var displayMood = (moodFromQuota === 'stressed' || moodFromQuota === 'panic')
+      ? moodFromQuota
+      : moodFromActivity;
+    byId("mood").textContent = displayMood;
     byId("trait").textContent = computeTrait(s.pet);
     var evo = nextPhaseProgress(s.progress.level);
     byId("next-evo").textContent = evo.label;
@@ -861,6 +935,42 @@ const CLIENT_JS = `
       }
     }
     byId("stats").innerHTML = statsHtml;
+
+    // V3.7 - Quotas card render
+    var quota = s.counters && s.counters.quota;
+    var qCard = byId('quotas-card');
+    if (!quota || !quota.optIn) {
+      qCard.hidden = true;
+    } else {
+      qCard.hidden = false;
+      var s5 = quota.session5h;
+      var w7 = quota.weekly7d;
+      if (s5) {
+        var pct5 = Math.max(0, Math.min(100, s5.utilization));
+        var fill5 = byId('quota-5h-fill');
+        fill5.style.width = pct5.toFixed(1) + '%';
+        fill5.className = 'quota-bar-fill ' + bandClass(pct5);
+        byId('quota-5h-pct').textContent = pct5.toFixed(0) + '%';
+        byId('quota-5h-meta').textContent =
+          'Resets ' + formatResetIn(s5.resetTs) +
+          ' . burn ' + (quota.burnRatePctPerMin || 0).toFixed(2) + '%/min';
+      }
+      var row7 = byId('quota-7d-row');
+      var meta7 = byId('quota-7d-meta');
+      if (w7) {
+        row7.hidden = false;
+        meta7.hidden = false;
+        var pct7 = Math.max(0, Math.min(100, w7.utilization));
+        var fill7 = byId('quota-7d-fill');
+        fill7.style.width = pct7.toFixed(1) + '%';
+        fill7.className = 'quota-bar-fill ' + bandClass(pct7);
+        byId('quota-7d-pct').textContent = pct7.toFixed(0) + '%';
+        meta7.textContent = 'Resets ' + formatResetIn(w7.resetTs);
+      } else {
+        row7.hidden = true;
+        meta7.hidden = true;
+      }
+    }
 
     function renderAchievementRow(id, state) {
       var def = ACH[id];
