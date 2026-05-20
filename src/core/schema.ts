@@ -7,6 +7,11 @@
 
 import { z } from "zod";
 import { createInitialOtelCounters, type OtelCounters, OtelCountersSchema } from "./otel/schema.js";
+import {
+  createInitialQuota,
+  type QuotaState,
+  QuotaStateSchema,
+} from "./quota/schema.js";
 
 // ---------- Enums ----------
 
@@ -200,6 +205,8 @@ export interface Counters {
   nightOwlEvents: number;
   /** V2.0 OTel-derived counters (optional for V1.x state migration). */
   otel?: OtelCounters;
+  /** V3.7 quota tracking (opt-in, additive). */
+  quota?: QuotaState;
 }
 
 export interface Achievements {
@@ -286,6 +293,7 @@ export const CountersSchema = z.object({
   lastActiveDate: z.string(),
   nightOwlEvents: z.number(),
   otel: OtelCountersSchema.optional(),
+  quota: QuotaStateSchema.optional(),
 });
 
 export const AchievementsSchema = z.object({

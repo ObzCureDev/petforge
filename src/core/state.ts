@@ -32,6 +32,7 @@ import { migrateV31Achievements } from "./migrations/v32-achievement-rename.js";
 import { HOOK_ERROR_LOG, LOCK_FILE, PETFORGE_DIR, STATE_FILE } from "./paths.js";
 import { generatePet } from "./pet-engine.js";
 import { createInitialState, type Pet, type State, StateSchema } from "./schema.js";
+import { createInitialQuota } from "./quota/schema.js";
 
 // ---------- Errors ----------
 
@@ -278,6 +279,8 @@ export async function withStateLock<T>(
       }
     }
 
+    ensureQuotaCounters(state);
+
     const result = await mutator(state);
     await writeStateAtomic(state);
     return result;
@@ -287,6 +290,21 @@ export async function withStateLock<T>(
     } catch {
       // best-effort release; never crash hook execution
     }
+  }
+}
+
+/**
+ * Ensure `state.counters.quota` is populated.
+ *
+ * V3.6 state files do not contain the `quota` block. After loading + validating
+ * a state via `StateSchema` (which keeps `quota` optional), call this to
+ * synthesize a fresh opt-out QuotaState if absent. Achievement evaluation
+ * gates on `quota.optIn === true && quota.lastProbeTs > 0`, so a synthesized
+ * block is inert until the user runs `petforge quota enable`.
+ */
+export function ensureQuotaCounters(state: State): void {
+  if (!state.counters.quota) {
+    state.counters.quota = createInitialQuota();
   }
 }
 
