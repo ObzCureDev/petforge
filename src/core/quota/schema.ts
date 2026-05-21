@@ -54,7 +54,12 @@ export const QuotaStateSchema = z.object({
   session5h: QuotaWindowSchema.nullable(),
   weekly7d: QuotaWindowSchema.nullable(),
   status: z.string(),
-  burnRatePctPerMin: nn,
+  // burnRatePctPerMin can legitimately be negative when utilization drops
+  // between probes (5h reset window passed). The previous `nn` constraint
+  // rejected the whole state file the first time a reset rolled over,
+  // bricking PetForge for hours until manual recovery (observed 2026-05-21
+  // around 19:30 local - tens of state.corrupt.*.json files generated).
+  burnRatePctPerMin: z.number(),
   recentSamples: z.array(QuotaSampleSchema),
   lastProbeTs: nn,
   lastProbeOk: z.boolean(),

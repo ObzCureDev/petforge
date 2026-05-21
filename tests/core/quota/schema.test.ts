@@ -41,6 +41,12 @@ describe("quota/schema", () => {
     expect(QuotaStateSchema.safeParse(q).success).toBe(true);
   });
 
+  it("V3.7.1.2: accepts negative burnRatePctPerMin (5h reset window drop is legitimate)", () => {
+    const q = createInitialQuota(0);
+    q.burnRatePctPerMin = -0.42;
+    expect(QuotaStateSchema.safeParse(q).success).toBe(true);
+  });
+
   it("rejects negative utilization", () => {
     const q = createInitialQuota(0);
     (q as unknown as { session5h: { utilization: number; resetTs: number } }).session5h = {

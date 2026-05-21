@@ -52,12 +52,30 @@ export class StateCorruptError extends Error {
 
 // ---------- Helpers ----------
 
+/**
+ * V3.7.1.3: ENOENT-strict existence check.
+ *
+ * The previous "any error means missing" semantics caused pet wipes on
+ * Windows when antivirus/indexer/OneDrive briefly held a handle on a
+ * .petforge file. `fs.access` would throw EPERM/EBUSY -> `fileExists`
+ * returned false -> recoverCorruptState fell into the "first install"
+ * branch and regenerated a rabbit on top of Huddle.
+ *
+ * Now we only treat ENOENT as confirmed-missing. Anything else (EPERM,
+ * EBUSY, EACCES, EMFILE, unknown) is a transient I/O state - we assume
+ * the file is present to prevent silent regeneration. Cost: a "first
+ * install" with a permission-denied directory will be misidentified as
+ * "already initialized" and the operation will throw instead of
+ * bootstrapping. That's the right trade.
+ */
 async function fileExists(p: string): Promise<boolean> {
   try {
     await fs.access(p);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return false;
+    return true;
   }
 }
 
