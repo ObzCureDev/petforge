@@ -165,10 +165,10 @@ describe("state", () => {
     expect(onDisk).toBe("garbage");
   });
 
-  it("V3.7.1: recoverCorruptState still produces fresh state when file is genuinely missing", async () => {
+  it("V3.7.1: recoverCorruptState produces fresh state ONLY on true first install (no marker, no state.json)", async () => {
     const { paths, petEngine, state } = await loadModules();
     await state.ensurePetforgeDir();
-    // state.json does NOT exist - this is the first-install path.
+    // Neither state.json nor the .initialized marker exists - virgin install.
 
     const fresh = await state.recoverCorruptState(() => testPet(petEngine));
     expect(fresh.schemaVersion).toBe(2);
@@ -180,6 +180,26 @@ describe("state", () => {
     const entries = await fs.readdir(paths.PETFORGE_DIR);
     const backups = entries.filter((n) => n.startsWith("state.corrupt.") && n.endsWith(".json"));
     expect(backups.length).toBe(0);
+
+    // The marker file is now present, so future "missing state" events
+    // will refuse to regenerate (Windows NTFS rename-race protection).
+    const markerExists = await fs
+      .access(path.join(paths.PETFORGE_DIR, ".initialized"))
+      .then(() => true)
+      .catch(() => false);
+    expect(markerExists).toBe(true);
+  });
+
+  it("V3.7.1: recoverCorruptState THROWS when marker exists but state.json is missing (rename race protection)", async () => {
+    const { paths, petEngine, state } = await loadModules();
+    await state.ensurePetforgeDir();
+    // Simulate a previously-initialized install where state.json was
+    // momentarily absent (e.g. Windows atomic-rename mid-operation).
+    await fs.writeFile(path.join(paths.PETFORGE_DIR, ".initialized"), "1", "utf8");
+
+    await expect(state.recoverCorruptState(() => testPet(petEngine))).rejects.toBeInstanceOf(
+      state.StateCorruptError,
+    );
   });
 
   it("writeStateAtomic creates state.json with content and updates meta.updatedAt", async () => {

@@ -221,6 +221,17 @@ export async function writeStateAtomic(state: State): Promise<void> {
  * error. The CLI (hook handler in particular) wraps and logs it; the user
  * fixes the pet via a manual restore from a backup.
  */
+/**
+ * Sentinel marker written once on first install. Its presence guarantees
+ * we've ever bootstrapped a pet for this host, regardless of whether
+ * state.json currently exists. Used to defeat the Windows NTFS
+ * `MoveFileEx` race where the destination is briefly absent during a
+ * concurrent atomic rename - a hook event firing in that window would
+ * otherwise see "state missing" and regenerate a fresh pet on top of
+ * the user's progress.
+ */
+const INITIALIZED_MARKER = path.join(PETFORGE_DIR, ".initialized");
+
 export async function recoverCorruptState(petGenerator: () => Pet): Promise<State> {
   if (await fileExists(STATE_FILE)) {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -237,7 +248,27 @@ export async function recoverCorruptState(petGenerator: () => Pet): Promise<Stat
         `Restore from one of your ~/.petforge/state.json.bak-* files manually.`,
     );
   }
-  return createInitialState(petGenerator(), Date.now());
+  // File truly missing. But was this install bootstrapped before?
+  if (await fileExists(INITIALIZED_MARKER)) {
+    // Yes - so the "missing" is almost certainly the Windows NTFS rename
+    // race window, not a genuine first install. Refuse to regenerate.
+    throw new StateCorruptError(
+      "state.json appears missing but this install was previously initialized " +
+        `(marker at ${INITIALIZED_MARKER}). This is the Windows atomic-rename race - ` +
+        "retry the operation. If state.json is genuinely missing, restore from a " +
+        "backup at ~/.petforge/state.json.bak-* and the next operation will succeed.",
+    );
+  }
+  // True first install - bootstrap and drop the marker so this code path
+  // never silently wipes a previously initialized pet.
+  const fresh = createInitialState(petGenerator(), Date.now());
+  try {
+    await fs.writeFile(INITIALIZED_MARKER, "1", "utf8");
+  } catch {
+    // best-effort - if marker write fails the install will work but the
+    // race protection is weaker. Caller still wrote state.json.
+  }
+  return fresh;
 }
 
 export interface WithStateLockOptions {
