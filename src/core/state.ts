@@ -200,12 +200,26 @@ export async function writeStateAtomic(state: State): Promise<void> {
 }
 
 /**
- * Materialise a fresh State, backing up any existing (presumably corrupt)
- * state.json to `state.corrupt.<timestamp>.<rand>.json` first.
+ * Materialise a fresh State for a FIRST INSTALL only.
  *
- * Safe to call when state.json is merely missing — the backup step is
- * skipped silently in that case. The caller is responsible for writing
- * the returned state.
+ * V3.7.1 hardening: this function REFUSES to overwrite an existing
+ * state.json. If state.json is present but failed to parse, it makes a
+ * timestamped `.corrupt.*` backup and then throws StateCorruptError so
+ * the caller can decide what to do. Previously this silently regenerated
+ * a fresh pet when called against a corrupt-on-disk state, which produced
+ * the "overnight Windows-write-tear nukes my pet" failure mode reported
+ * twice in 2026-05 (Dan's Huddle the octopus level 72 wiped to rabbit
+ * level 1, immediately re-buffed to ~level 10 by OTel-driven achievement
+ * unlocks — so the wipe was not even visibly "fresh").
+ *
+ * Behavior:
+ *   - state.json MISSING (first install ever)  -> return fresh State.
+ *   - state.json EXISTS (assumed corrupt)       -> copy to .corrupt.*.json,
+ *                                                  then throw StateCorruptError.
+ *
+ * Callers that previously relied on silent regeneration now propagate the
+ * error. The CLI (hook handler in particular) wraps and logs it; the user
+ * fixes the pet via a manual restore from a backup.
  */
 export async function recoverCorruptState(petGenerator: () => Pet): Promise<State> {
   if (await fileExists(STATE_FILE)) {
@@ -217,6 +231,11 @@ export async function recoverCorruptState(petGenerator: () => Pet): Promise<Stat
     } catch {
       // best-effort backup; never crash hook execution
     }
+    throw new StateCorruptError(
+      `state.json exists but failed to parse - refusing to silently regenerate. ` +
+        `A backup was copied to ${backup} (if writable). ` +
+        `Restore from one of your ~/.petforge/state.json.bak-* files manually.`,
+    );
   }
   return createInitialState(petGenerator(), Date.now());
 }

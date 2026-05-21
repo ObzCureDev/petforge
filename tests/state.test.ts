@@ -137,15 +137,18 @@ describe("state", () => {
     await expect(state.readState()).rejects.toBeInstanceOf(state.StateCorruptError);
   });
 
-  it("recoverCorruptState backs up corrupt file and returns fresh state", async () => {
+  it("V3.7.1: recoverCorruptState backs up corrupt file then THROWS (no silent regenerate)", async () => {
     const { paths, petEngine, state } = await loadModules();
     await state.ensurePetforgeDir();
     await fs.writeFile(paths.STATE_FILE, "garbage", "utf8");
 
-    const fresh = await state.recoverCorruptState(() => testPet(petEngine));
-    expect(fresh.schemaVersion).toBe(2);
-    expect(fresh.progress.xp).toBe(0);
+    // Previously this returned a fresh state, silently wiping any prior
+    // progress. Now it throws so the operator must restore from a backup.
+    await expect(state.recoverCorruptState(() => testPet(petEngine))).rejects.toBeInstanceOf(
+      state.StateCorruptError,
+    );
 
+    // The backup is still copied (best-effort) for forensic recovery.
     const entries = await fs.readdir(paths.PETFORGE_DIR);
     const backups = entries.filter((n) => n.startsWith("state.corrupt.") && n.endsWith(".json"));
     expect(backups.length).toBe(1);
@@ -156,6 +159,27 @@ describe("state", () => {
       const backupContent = await fs.readFile(path.join(paths.PETFORGE_DIR, backupName), "utf8");
       expect(backupContent).toBe("garbage");
     }
+
+    // The original corrupt state.json is untouched (no overwrite).
+    const onDisk = await fs.readFile(paths.STATE_FILE, "utf8");
+    expect(onDisk).toBe("garbage");
+  });
+
+  it("V3.7.1: recoverCorruptState still produces fresh state when file is genuinely missing", async () => {
+    const { paths, petEngine, state } = await loadModules();
+    await state.ensurePetforgeDir();
+    // state.json does NOT exist - this is the first-install path.
+
+    const fresh = await state.recoverCorruptState(() => testPet(petEngine));
+    expect(fresh.schemaVersion).toBe(2);
+    expect(fresh.progress.xp).toBe(0);
+    expect(fresh.progress.level).toBe(1);
+    expect(fresh.progress.phase).toBe("egg");
+
+    // No .corrupt backups were created (nothing to back up).
+    const entries = await fs.readdir(paths.PETFORGE_DIR);
+    const backups = entries.filter((n) => n.startsWith("state.corrupt.") && n.endsWith(".json"));
+    expect(backups.length).toBe(0);
   });
 
   it("writeStateAtomic creates state.json with content and updates meta.updatedAt", async () => {

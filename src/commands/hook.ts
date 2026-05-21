@@ -355,8 +355,20 @@ export function applyHookEvent(
 /**
  * Apply a hook event to disk: lock state, mutate, write atomically.
  *
- * Recovers gracefully from a missing or corrupt state file by
- * initialising a fresh state with the deterministic pet for this user.
+ * Recovery policy (V3.7.1):
+ *   - MISSING state.json (first install ever) -> create fresh pet.
+ *   - CORRUPT state.json (file exists but does not parse) -> the call to
+ *     `recoverCorruptState` throws StateCorruptError. The hook caller
+ *     catches it and exits 0 (one event skipped, no XP loss for the pet
+ *     beyond this single event). This prevents the "overnight Windows-
+ *     write-tear wipes my pet" failure mode observed twice in 2026-05,
+ *     where silent regeneration nuked Huddle the octopus (level 72) into
+ *     a fresh rabbit (level 1, then immediately re-buffed to ~level 10
+ *     by OTel-driven achievement unlocks on the cached cache_100k tokens).
+ *
+ *   The protection lives in `recoverCorruptState` itself so every caller
+ *   (collect.ts OTel writes, buddy.ts commands, render-state.ts) benefits
+ *   without each needing to remember the policy.
  */
 export async function runHook(
   event: HookEvent,

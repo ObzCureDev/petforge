@@ -671,6 +671,54 @@ describe("runHook (state I/O)", () => {
     expect(s.progress.xp).toBeGreaterThanOrEqual(N * 5);
   });
 
+  it("V3.7.1: corrupt state.json is PRESERVED, not silently fresh-petted", async () => {
+    // Regression test for the wipe-overnight bug (2026-05-20, 2026-05-21).
+    // Previously, any read failure (parse error, truncation) triggered a
+    // fresh pet via recoverCorruptState — silently nuking accumulated XP,
+    // achievements, and the user's chosen species. The new policy: if
+    // state.json exists but doesn't parse, preserve it byte-for-byte and
+    // skip the hook event so the operator can restore from a backup.
+    const { hook, state, petEngine, schema } = await loadModules();
+
+    // First, create a real valid state with an unmistakable pet so we can
+    // tell a "preserved corrupt state" from a "fresh regenerated state."
+    await hook.runHook("prompt", { session_id: "seed" }, Date.now());
+
+    // Now corrupt the on-disk state.
+    const stateFile = path.join(testHome, ".petforge", "state.json");
+    const corruptBytes = '{"this is not valid": json,';
+    await fs.writeFile(stateFile, corruptBytes, "utf8");
+
+    // Run a hook — under the OLD policy this would silently wipe.
+    // Under the new policy, runHook throws; the caller (hookCli) catches
+    // and logs without crashing. We use runHook directly so we can assert.
+    let threw = false;
+    try {
+      await hook.runHook("prompt", { session_id: "post-corrupt" }, Date.now());
+    } catch (err) {
+      threw = true;
+      expect(String((err as Error).message)).toContain(
+        "refusing to silently regenerate",
+      );
+    }
+    expect(threw).toBe(true);
+
+    // The corrupt file on disk MUST be untouched (no silent overwrite).
+    const onDiskAfter = await fs.readFile(stateFile, "utf8");
+    expect(onDiskAfter).toBe(corruptBytes);
+
+    // Sanity: there is no fresh rabbit/octopus written somewhere; the file
+    // is still corrupt, readState will refuse to parse it.
+    await expect(state.readState()).rejects.toBeInstanceOf(state.StateCorruptError);
+
+    // The user can now manually restore from a backup. Validate that path:
+    const restoredPet = petEngine.generatePet();
+    const restoredState = schema.createInitialState(restoredPet, Date.now());
+    await fs.writeFile(stateFile, JSON.stringify(restoredState, null, 2), "utf8");
+    const reloaded = await state.readState();
+    expect(reloaded.pet.species).toBe(restoredPet.species);
+  });
+
   it("benchmark: 10 sequential hooks complete within budget", async () => {
     ensureStdinTty();
     const { hook } = await loadModules();
