@@ -130,6 +130,13 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
       });
       return;
     }
+    if (url.pathname === "/claude-quota") {
+      handleClaudeQuota(res).catch(() => {
+        res.writeHead(500);
+        res.end("server error");
+      });
+      return;
+    }
     if (url.pathname === "/manifest.webmanifest" || url.pathname === "/manifest.json") {
       res.writeHead(200, {
         "Content-Type": "application/manifest+json; charset=utf-8",
@@ -281,6 +288,70 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
     } catch (err) {
       if (err instanceof StateNotFoundError) {
         res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "no state yet" }));
+        return;
+      }
+      if (err instanceof StateCorruptError) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "state corrupt" }));
+        return;
+      }
+      res.writeHead(500);
+      res.end();
+    }
+  }
+
+  /**
+   * V3.7.2 - Home Assistant integration surface.
+   *
+   * Returns the three "% remaining" values Home Assistant REST sensors
+   * consume. `_remaining` is `100 - utilization` so the dashboard reads
+   * "you have X% left" instead of "you've used X%". Each field is null
+   * when the underlying probe hasn't observed that window yet (e.g.
+   * `opus_week_remaining` is null on Pro plans without Opus usage).
+   *
+   *   GET /claude-quota
+   *   200 application/json
+   *   {
+   *     "session_remaining":   0..100 | null,
+   *     "week_remaining":      0..100 | null,
+   *     "opus_week_remaining": 0..100 | null,
+   *     "last_probe_ts": <epoch ms>,
+   *     "last_probe_ok": boolean,
+   *     "opt_in": boolean
+   *   }
+   *
+   * 503 if state is corrupt or quota opt-in is false (HA REST sensor
+   * will surface `unavailable` and the user's offline garde-fou
+   * automation can fire after 1h muteness).
+   */
+  async function handleClaudeQuota(res: http.ServerResponse): Promise<void> {
+    try {
+      const state = await readState();
+      const q = state.counters.quota;
+      if (!q || q.optIn !== true) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "quota tracking disabled" }));
+        return;
+      }
+      const remaining = (utilization: number): number =>
+        Math.max(0, Math.min(100, 100 - utilization));
+      const body = {
+        session_remaining: q.session5h ? remaining(q.session5h.utilization) : null,
+        week_remaining: q.weekly7d ? remaining(q.weekly7d.utilization) : null,
+        opus_week_remaining: q.opus7d ? remaining(q.opus7d.utilization) : null,
+        last_probe_ts: q.lastProbeTs,
+        last_probe_ok: q.lastProbeOk,
+        opt_in: q.optIn,
+      };
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      });
+      res.end(JSON.stringify(body));
+    } catch (err) {
+      if (err instanceof StateNotFoundError) {
+        res.writeHead(503, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "no state yet" }));
         return;
       }

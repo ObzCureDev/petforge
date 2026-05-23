@@ -32,8 +32,31 @@ describe("quota/probe", () => {
       kind: "ok",
       session5h: { utilization: 59, resetTs: 1_700_000_500 },
       weekly7d: { utilization: 20, resetTs: 1_700_600_000 },
+      opus7d: null,
       status: "allowed",
     });
+  });
+
+  it("V3.7.2: captures opus7d window when Anthropic returns the headers", async () => {
+    const fetchImpl = vi.fn(async () =>
+      mkResponse({
+        status: 200,
+        headers: {
+          "anthropic-ratelimit-unified-5h-utilization": "0.30",
+          "anthropic-ratelimit-unified-5h-reset": "1700000500",
+          "anthropic-ratelimit-unified-5h-status": "allowed",
+          "anthropic-ratelimit-unified-7d-utilization": "0.40",
+          "anthropic-ratelimit-unified-7d-reset": "1700600000",
+          "anthropic-ratelimit-unified-7d-opus-utilization": "0.55",
+          "anthropic-ratelimit-unified-7d-opus-reset": "1700650000",
+        },
+      }),
+    );
+    const result = await probe("sk-test", { fetchImpl });
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.opus7d).toEqual({ utilization: 55, resetTs: 1_700_650_000 });
+    }
   });
 
   it("returns weekly7d = null when 7d header absent (Pro plan)", async () => {

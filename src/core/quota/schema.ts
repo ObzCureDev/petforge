@@ -25,6 +25,12 @@ export interface QuotaState {
   optIn: boolean;
   session5h: QuotaWindow | null;
   weekly7d: QuotaWindow | null;
+  /**
+   * V3.7.2 - Opus-specific weekly window. Populated only when Anthropic
+   * returns the `anthropic-ratelimit-unified-7d-opus-*` response headers
+   * (Max plan + Opus usage). Null on Pro plans or when never observed.
+   */
+  opus7d: QuotaWindow | null;
   status: string;
   burnRatePctPerMin: number;
   recentSamples: QuotaSample[];
@@ -53,6 +59,9 @@ export const QuotaStateSchema = z.object({
   optIn: z.boolean(),
   session5h: QuotaWindowSchema.nullable(),
   weekly7d: QuotaWindowSchema.nullable(),
+  // V3.7.2 additive: nullable + optional so existing state files (without
+  // the field at all) still parse.
+  opus7d: QuotaWindowSchema.nullable().optional(),
   status: z.string(),
   // burnRatePctPerMin can legitimately be negative when utilization drops
   // between probes (5h reset window passed). The previous `nn` constraint
@@ -75,6 +84,7 @@ export function createInitialQuota(now: number = Date.now()): QuotaState {
     optIn: false,
     session5h: null,
     weekly7d: null,
+    opus7d: null,
     status: "",
     burnRatePctPerMin: 0,
     recentSamples: [],

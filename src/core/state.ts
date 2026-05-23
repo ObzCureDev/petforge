@@ -277,6 +277,23 @@ export async function recoverCorruptState(petGenerator: () => Pet): Promise<Stat
         "backup at ~/.petforge/state.json.bak-* and the next operation will succeed.",
     );
   }
+  // V3.7.2 - last-chance double check. Before declaring "first install"
+  // (irreversible: wipes user data if wrong), wait 150ms and re-verify
+  // BOTH files are still gone. This catches the case where:
+  //   - state.json is mid-MoveFileEx and briefly absent (NTFS race)
+  //   - marker file's writeFile failed silently for AV reasons but the
+  //     marker actually exists on disk (we want to err on the side of
+  //     "do not wipe" - throw rather than create).
+  // Also covers Windows Defender / OneDrive sync briefly making the dir
+  // entries invisible. Cost: 150ms latency on legitimate first install.
+  await new Promise<void>((r) => setTimeout(r, 150));
+  if ((await fileExists(STATE_FILE)) || (await fileExists(INITIALIZED_MARKER))) {
+    throw new StateCorruptError(
+      "state.json reappeared (or marker did) during recovery window - " +
+        "aborting fresh pet creation. This is the Windows atomic-rename race - " +
+        "the caller should retry the operation.",
+    );
+  }
   // True first install - bootstrap and drop the marker so this code path
   // never silently wipes a previously initialized pet.
   const fresh = createInitialState(petGenerator(), Date.now());

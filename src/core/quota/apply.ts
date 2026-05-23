@@ -46,6 +46,7 @@ export function applyProbeResult(q: QuotaState, r: ProbeResult, now: number): vo
   // Commit window/status.
   q.session5h = r.session5h;
   q.weekly7d = r.weekly7d;
+  q.opus7d = r.opus7d;
   q.status = r.status;
 
   // Push sample + recompute burn rate.
