@@ -267,14 +267,44 @@ export async function recoverCorruptState(petGenerator: () => Pet): Promise<Stat
     );
   }
   // File truly missing. But was this install bootstrapped before?
-  if (await fileExists(INITIALIZED_MARKER)) {
-    // Yes - so the "missing" is almost certainly the Windows NTFS rename
-    // race window, not a genuine first install. Refuse to regenerate.
+  // We check MULTIPLE sentinel files because any single one (including the
+  // .initialized marker) can be transiently invisible during AV/Defender
+  // scans on Windows. If ANY of these exist, this is not a virgin install
+  // and we refuse to regenerate.
+  const sentinels = [
+    INITIALIZED_MARKER,
+    path.join(PETFORGE_DIR, "buddy-card.txt"),
+    path.join(PETFORGE_DIR, "hook-errors.log"),
+    path.join(PETFORGE_DIR, "up.log"),
+  ];
+  for (const s of sentinels) {
+    if (await fileExists(s)) {
+      throw new StateCorruptError(
+        "state.json appears missing but the install is NOT virgin " +
+          `(sentinel present: ${s}). This is almost certainly the Windows ` +
+          "atomic-rename race or a transient AV scan - retry the operation. " +
+          "If state.json is genuinely missing, restore from a backup at " +
+          "~/.petforge/state.json.bak-*.",
+      );
+    }
+  }
+  // Also reject if there's even a backup snapshot lying around - this
+  // proves the install has run before, regardless of marker state.
+  try {
+    const entries = await fs.readdir(PETFORGE_DIR);
+    if (entries.some((n) => n.startsWith("state.json.bak-") || n.startsWith("state.corrupt."))) {
+      throw new StateCorruptError(
+        "state.json missing but ~/.petforge/ contains backup snapshots from " +
+          "a previous install. Refusing to regenerate to protect prior progress.",
+      );
+    }
+  } catch (err) {
+    if (err instanceof StateCorruptError) throw err;
+    // EACCES / EPERM on readdir = treat as "directory might have content,
+    // don't risk a wipe."
     throw new StateCorruptError(
-      "state.json appears missing but this install was previously initialized " +
-        `(marker at ${INITIALIZED_MARKER}). This is the Windows atomic-rename race - ` +
-        "retry the operation. If state.json is genuinely missing, restore from a " +
-        "backup at ~/.petforge/state.json.bak-* and the next operation will succeed.",
+      "could not list ~/.petforge/ to verify virgin install - refusing to " +
+        "regenerate. Resolve the directory permission and retry.",
     );
   }
   // V3.7.2 - last-chance double check. Before declaring "first install"

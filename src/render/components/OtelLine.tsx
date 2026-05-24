@@ -10,6 +10,7 @@
 
 import { Text } from "ink";
 import type React from "react";
+import { computeApiEquivCostCents } from "../../core/otel/pricing.js";
 import type { State } from "../../core/schema.js";
 
 export function OtelLine({ state }: { state: State }): React.ReactElement | null {
@@ -19,12 +20,14 @@ export function OtelLine({ state }: { state: State }): React.ReactElement | null
   const lines = `+${formatThousands(o.linesAdded)} / -${formatThousands(o.linesRemoved)}`;
   const tokens = formatCompact(o.tokensIn + o.tokensOut);
   const cost = `$${(o.costUsdCents / 100).toFixed(2)}`;
+  const apiEquivCents = computeApiEquivCostCents(o);
+  const apiEquiv = `$${(apiEquivCents / 100).toFixed(2)}`;
   const cacheVolume = o.tokensIn + o.tokensCacheRead;
   const cachePct = cacheVolume > 0 ? Math.round((o.tokensCacheRead / cacheVolume) * 100) : 0;
 
   return (
     <Text dimColor>
-      Lines: {lines} · Tokens: {tokens} · Cost: {cost} · Cache: {cachePct}%
+      Lines: {lines} · Tokens: {tokens} · Cost: {cost} (API {apiEquiv}) · Cache: {cachePct}%
     </Text>
   );
 }
