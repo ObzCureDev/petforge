@@ -117,7 +117,11 @@ export async function scanAllJsonl(opts: ScanOptions = {}): Promise<HistoricalTo
     }
   }
 
-  // Stream each project's files and accumulate.
+  // Stream each project's files and accumulate. `seenIds` is shared
+  // across all files: Claude Code's subagent JSONL files reference the
+  // same message ids as their parent conversation, so dedup must be
+  // global to avoid double-counting.
+  const seenIds = new Set<string>();
   for (const [projectKey, files] of byProject) {
     const pu: ProjectUsage = {
       projectKey,
@@ -129,7 +133,7 @@ export async function scanAllJsonl(opts: ScanOptions = {}): Promise<HistoricalTo
     for (const file of files) {
       if (totals.filesScanned >= maxFiles) break;
       totals.filesScanned++;
-      await accumulateFile(file, pu, totals);
+      await accumulateFile(file, pu, totals, seenIds);
     }
     if (pu.messageCount > 0) totals.byProject.push(pu);
     if (totals.filesScanned >= maxFiles) break;
@@ -143,6 +147,7 @@ async function accumulateFile(
   filePath: string,
   pu: ProjectUsage,
   totals: HistoricalTotals,
+  seenIds: Set<string>,
 ): Promise<void> {
   const stream = createReadStream(filePath, { encoding: "utf8" });
   const rl = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
@@ -157,6 +162,14 @@ async function accumulateFile(
     }
     const u = extractUsage(row);
     if (!u) continue;
+    // V3.7.4 - Claude Code logs each assistant turn across multiple
+    // JSONL entries (text part + tool_use + status events) and copies
+    // the same `usage` block into each. Deduplicate by Anthropic's
+    // `message.id` to count each API call exactly once.
+    if (u.messageId) {
+      if (seenIds.has(u.messageId)) continue;
+      seenIds.add(u.messageId);
+    }
     totals.usageLinesScanned++;
     applyUsage(totals.total, u);
     applyUsage(totals.byModel[u.model] ?? (totals.byModel[u.model] = emptyUsage()), u);
@@ -179,6 +192,8 @@ interface ExtractedUsage {
   cacheCreation: number;
   /** epoch ms */
   ts: number;
+  /** Anthropic message id (msg_*) for dedup. */
+  messageId: string | null;
 }
 
 function extractUsage(row: unknown): ExtractedUsage | null {
@@ -189,6 +204,7 @@ function extractUsage(row: unknown): ExtractedUsage | null {
   const usage = msg.usage as Record<string, unknown> | undefined;
   if (!usage || typeof usage !== "object") return null;
   const model = typeof msg.model === "string" ? msg.model : "unknown";
+  const messageId = typeof msg.id === "string" ? msg.id : null;
   const num = (k: string): number => {
     const v = usage[k];
     return typeof v === "number" && Number.isFinite(v) ? v : 0;
@@ -208,7 +224,7 @@ function extractUsage(row: unknown): ExtractedUsage | null {
   } else if (typeof tsRaw === "number" && Number.isFinite(tsRaw)) {
     ts = tsRaw;
   }
-  return { model, tokensIn, tokensOut, cacheRead, cacheCreation, ts };
+  return { model, tokensIn, tokensOut, cacheRead, cacheCreation, ts, messageId };
 }
 
 function applyUsage(target: ModelUsage, u: ExtractedUsage): void {

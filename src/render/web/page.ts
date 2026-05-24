@@ -628,6 +628,56 @@ const CLIENT_JS = `
     return String(n);
   }
 
+  // V3.7.4 - inlined pricing for the web client. Kept in sync with
+  // src/core/otel/pricing.ts. USD per million tokens.
+  var MODEL_PRICING = {
+    "claude-opus-4-7": { input: 15, output: 75 },
+    "claude-opus-4-6": { input: 15, output: 75 },
+    "claude-opus-4-5": { input: 15, output: 75 },
+    "claude-opus-4-7[1m]": { input: 30, output: 150 },
+    "claude-opus-4-6[1m]": { input: 30, output: 150 },
+    "claude-sonnet-4-7": { input: 3, output: 15 },
+    "claude-sonnet-4-6": { input: 3, output: 15 },
+    "claude-sonnet-4-5": { input: 3, output: 15 },
+    "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
+    "claude-haiku-4-5": { input: 0.8, output: 4 },
+  };
+  var FALLBACK_PRICING = { input: 15, output: 75 };
+
+  function pricingFor(model) {
+    return MODEL_PRICING[model] || FALLBACK_PRICING;
+  }
+
+  function computeApiEquivCostCents(otel) {
+    if (!otel) return 0;
+    var models = otel.modelUsage || {};
+    var totalInputAllModels = 0;
+    for (var k in models) {
+      if (Object.prototype.hasOwnProperty.call(models, k)) {
+        totalInputAllModels += (models[k] && models[k].tokensIn) || 0;
+      }
+    }
+    if (totalInputAllModels === 0) {
+      var p0 = FALLBACK_PRICING;
+      var inputAll = (otel.tokensIn || 0) + (otel.tokensCacheRead || 0) + (otel.tokensCacheCreation || 0);
+      var usd0 = (inputAll * p0.input) / 1e6 + ((otel.tokensOut || 0) * p0.output) / 1e6;
+      return Math.round(usd0 * 100);
+    }
+    var usd = 0;
+    for (var name in models) {
+      if (!Object.prototype.hasOwnProperty.call(models, name)) continue;
+      var u = models[name] || {};
+      var p = pricingFor(name);
+      var share = (u.tokensIn || 0) / totalInputAllModels;
+      var cacheReadShare = (otel.tokensCacheRead || 0) * share;
+      var cacheCreationShare = (otel.tokensCacheCreation || 0) * share;
+      var apiInputTokens = (u.tokensIn || 0) + cacheReadShare + cacheCreationShare;
+      usd += (apiInputTokens * p.input) / 1e6;
+      usd += ((u.tokensOut || 0) * p.output) / 1e6;
+    }
+    return Math.round(usd * 100);
+  }
+
   // V3.7 - quota helpers
   function bandClass(pct) {
     if (pct >= 95) return 'danger';
@@ -1149,10 +1199,15 @@ const CLIENT_JS = `
       var lines = "+" + (o.linesAdded || 0).toLocaleString() + " / -" + (o.linesRemoved || 0).toLocaleString();
       var tokens = compact((o.tokensIn || 0) + (o.tokensOut || 0));
       var cost = "$" + ((o.costUsdCents || 0) / 100).toFixed(2);
+      // V3.7.4 - API-equivalent (no cache discount) cost alongside actual.
+      // Mirrors the CLI OtelLine display so users see how much cache saved
+      // them in real time. Pricing kept inline to avoid bundling code.
+      var apiCents = computeApiEquivCostCents(o);
+      var apiCost = "$" + (apiCents / 100).toFixed(2);
       var cv = (o.tokensIn || 0) + (o.tokensCacheRead || 0);
       var cachePct = cv > 0 ? Math.round((o.tokensCacheRead / cv) * 100) : 0;
       otelEl.textContent =
-        lines + " lines · " + tokens + " tokens · " + cost + " · Cache " + cachePct + "%";
+        lines + " lines · " + tokens + " tokens · " + cost + " (API " + apiCost + ") · Cache " + cachePct + "%";
       otelRow.hidden = false;
     } else {
       otelRow.hidden = true;

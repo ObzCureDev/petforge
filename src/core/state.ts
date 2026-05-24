@@ -205,6 +205,14 @@ function looksLikeV1(parsed: unknown): V1State | null {
  */
 export async function writeStateAtomic(state: State): Promise<void> {
   state.meta.updatedAt = Date.now();
+  // V3.7.4 - opportunistic daily snapshot. If no `state.json.bak-daily-*`
+  // exists for today, copy the current state.json (the BEFORE-image of
+  // this write) to a date-stamped backup. One stat() and at most one
+  // copyFile() per day on the busiest write path - negligible cost vs
+  // the value of always having a yesterday-or-newer pet snapshot to
+  // restore from after a wipe.
+  await opportunisticDailyBackup();
+
   const tmp = `${STATE_FILE}.tmp`;
   const data = JSON.stringify(state, null, 2);
   const fd = await fs.open(tmp, "w");
@@ -215,6 +223,20 @@ export async function writeStateAtomic(state: State): Promise<void> {
     await fd.close();
   }
   await renameWithRetry(tmp, STATE_FILE);
+}
+
+async function opportunisticDailyBackup(): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const backupPath = path.join(PETFORGE_DIR, `state.json.bak-daily-${today}`);
+    if (await fileExists(backupPath)) return; // already done today
+    if (!(await fileExists(STATE_FILE))) return; // nothing to back up
+    await fs.copyFile(STATE_FILE, backupPath);
+  } catch {
+    // Best-effort - a failed backup must never block the actual write.
+    // We deliberately don't logHookError here either to keep this path
+    // silent on transient AV/locking issues.
+  }
 }
 
 /**
