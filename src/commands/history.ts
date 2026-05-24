@@ -16,6 +16,7 @@ import {
   scanAllJsonl,
 } from "../core/history/scanner.js";
 import { pricingFor } from "../core/otel/pricing.js";
+import { ensureQuotaCounters, withStateLock } from "../core/state.js";
 
 export interface HistoryCliDeps {
   projectsDir?: string;
@@ -30,13 +31,18 @@ export async function historyCli(
 ): Promise<number> {
   const json = argv.includes("--json");
   const byProject = argv.includes("--by-project");
+  const syncOtel = argv.includes("--sync-otel");
   const help = argv.includes("--help") || argv.includes("-h");
   if (help) {
     out(deps)(
-      "Usage: petforge history [--by-project] [--json]\n" +
+      "Usage: petforge history [--by-project] [--json] [--sync-otel]\n" +
         "  Walks ~/.claude/projects, computes lifetime spend.\n" +
         "  --by-project   Group by repo folder, sorted by recency.\n" +
-        "  --json         Machine-readable output.\n",
+        "  --json         Machine-readable output.\n" +
+        "  --sync-otel    Replace state.counters.otel with the REAL lifetime\n" +
+        "                 totals from the scan. Tokens, cost, cache reads all\n" +
+        "                 become accurate. Achievements gated on OTel may\n" +
+        "                 unlock retroactively on next hook event.\n",
     );
     return 0;
   }
@@ -54,6 +60,45 @@ export async function historyCli(
   }
 
   const cost = rollupCost(totals);
+
+  if (syncOtel) {
+    // Mutate state.counters.otel with the REAL totals from the scan.
+    // Pet stats are NOT touched; the wipe-killer guard at writeStateAtomic
+    // ensures the existing pet survives this update.
+    await withStateLock((s) => {
+      ensureQuotaCounters(s);
+      const prev = s.counters.otel;
+      const modelUsage: Record<string, { tokensIn: number; tokensOut: number; sessions: number }> =
+        {};
+      for (const [name, m] of Object.entries(totals.byModel)) {
+        modelUsage[name] = { tokensIn: m.tokensIn, tokensOut: m.tokensOut, sessions: 0 };
+      }
+      s.counters.otel = {
+        linesAdded: prev?.linesAdded ?? 0,
+        linesRemoved: prev?.linesRemoved ?? 0,
+        tokensIn: totals.total.tokensIn,
+        tokensOut: totals.total.tokensOut,
+        tokensCacheRead: totals.total.cacheRead,
+        tokensCacheCreation: totals.total.cacheCreation,
+        costUsdCents: cost.total.paidCents,
+        editsAccepted: prev?.editsAccepted ?? 0,
+        editsRejected: prev?.editsRejected ?? 0,
+        toolDecisionsAccepted: prev?.toolDecisionsAccepted ?? 0,
+        toolDecisionsRejected: prev?.toolDecisionsRejected ?? 0,
+        commitCount: prev?.commitCount ?? 0,
+        prCount: prev?.prCount ?? 0,
+        apiErrorCount: prev?.apiErrorCount ?? 0,
+        modelUsage,
+        lastUpdate: Date.now(),
+        ingesterStarted: prev?.ingesterStarted ?? totals.oldestTs,
+      };
+    });
+    out(deps)(
+      `\n  state.counters.otel synced with lifetime totals.\n` +
+        `  Card / web view will now show $${(cost.total.paidCents / 100).toFixed(2)} ` +
+        `(API $${(cost.total.apiEquivCents / 100).toFixed(2)}).\n`,
+    );
+  }
 
   if (json) {
     out(deps)(`${JSON.stringify({ totals, cost, elapsedMs: elapsed }, null, 2)}\n`);
