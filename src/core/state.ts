@@ -205,6 +205,38 @@ function looksLikeV1(parsed: unknown): V1State | null {
  */
 export async function writeStateAtomic(state: State): Promise<void> {
   state.meta.updatedAt = Date.now();
+
+  // V3.7.5 - WIPE KILLER: the last-line defense at the write boundary.
+  //
+  // Five upstream protections (V3.7.1 refuse-corrupt, V3.7.1.1 marker,
+  // V3.7.1.3 ENOENT-strict, V3.7.2 150ms double-check, V3.7.3 multi-
+  // sentinel) all failed to stop the recurring wipe. Marker mtime
+  // forensics proved `recoverCorruptState`'s fresh path was never
+  // reached. Some unknown caller is constructing a fresh-shaped State
+  // and handing it to writeStateAtomic, bypassing recoverCorruptState
+  // entirely.
+  //
+  // This guard intercepts at the absolute last step before the rename:
+  // if we are about to write a State that looks brand-new
+  // (progress.xp == 0 && lastActiveDate empty && no active sessions)
+  // AND the on-disk state.json currently holds a non-fresh State,
+  // REFUSE the write. The caller gets an error; the pet stays alive.
+  //
+  // Also dumps a full stack trace to ~/.petforge/wipe-investigation.log
+  // so we can finally see which call site is doing this.
+  if (looksLikeFreshState(state)) {
+    const existing = await tryReadStateRaw();
+    if (existing && !looksLikeFreshState(existing)) {
+      const trace = new Error("wipe-killer activated").stack ?? "(no stack)";
+      await logWipeAttempt(state, existing, trace);
+      throw new StateCorruptError(
+        "WIPE KILLER: refused to overwrite a non-fresh state.json with a " +
+          "fresh pet. See ~/.petforge/wipe-investigation.log for the caller " +
+          "stack. Existing pet preserved.",
+      );
+    }
+  }
+
   // V3.7.4 - opportunistic daily snapshot. If no `state.json.bak-daily-*`
   // exists for today, copy the current state.json (the BEFORE-image of
   // this write) to a date-stamped backup. One stat() and at most one
@@ -223,6 +255,64 @@ export async function writeStateAtomic(state: State): Promise<void> {
     await fd.close();
   }
   await renameWithRetry(tmp, STATE_FILE);
+}
+
+/**
+ * True when the State looks like a brand-new install: zero XP, level 1,
+ * egg phase, no streak, no sessions ever recorded, no OTel data.
+ * Whichever surface created this State, it carries no user progress.
+ */
+function looksLikeFreshState(s: State): boolean {
+  return (
+    s.progress.xp === 0 &&
+    s.progress.level === 1 &&
+    s.progress.phase === "egg" &&
+    s.counters.promptsTotal === 0 &&
+    s.counters.toolUseTotal === 0 &&
+    s.counters.sessionsTotal === 0 &&
+    s.counters.streakDays === 0 &&
+    s.counters.lastActiveDate === "" &&
+    Object.keys(s.counters.activeSessions).length === 0
+  );
+}
+
+async function tryReadStateRaw(): Promise<State | null> {
+  try {
+    const raw = await fs.readFile(STATE_FILE, "utf8");
+    const parsed = JSON.parse(raw) as State;
+    if (typeof parsed !== "object" || parsed === null) return null;
+    if (!parsed.progress || !parsed.counters) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function logWipeAttempt(
+  incoming: State,
+  existing: State,
+  trace: string,
+): Promise<void> {
+  try {
+    await ensurePetforgeDir();
+    const logFile = path.join(PETFORGE_DIR, "wipe-investigation.log");
+    const ts = new Date().toISOString();
+    const summary =
+      `${ts} WIPE KILLER fired\n` +
+      `  Existing: species=${existing.pet?.species} ` +
+      `rarity=${existing.pet?.rarity} ` +
+      `level=${existing.progress?.level} xp=${existing.progress?.xp} ` +
+      `prompts=${existing.counters?.promptsTotal} ` +
+      `tools=${existing.counters?.toolUseTotal} ` +
+      `streak=${existing.counters?.streakDays}\n` +
+      `  Incoming: species=${incoming.pet?.species} ` +
+      `rarity=${incoming.pet?.rarity} ` +
+      `level=${incoming.progress?.level} xp=${incoming.progress?.xp}\n` +
+      `  Stack:\n${trace}\n\n`;
+    await fs.appendFile(logFile, summary, "utf8");
+  } catch {
+    // best-effort
+  }
 }
 
 async function opportunisticDailyBackup(): Promise<void> {
