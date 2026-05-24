@@ -9,6 +9,7 @@ import { cardCli } from "./commands/card.js";
 import { collectCli } from "./commands/collect.js";
 import { defaultCli } from "./commands/default.js";
 import { doctorCli } from "./commands/doctor.js";
+import { historyCli } from "./commands/history.js";
 import { hookCli } from "./commands/hook.js";
 import { initCli } from "./commands/init.js";
 import { quotaCli } from "./commands/quota.js";
@@ -52,6 +53,8 @@ async function main(): Promise<number> {
     console.log("              (--port=N --forward=URL)");
     console.log("  quota       Show Claude Code rate-limit usage (5h + 7d)");
     console.log("              (enable | disable | --json)");
+    console.log("  history     Lifetime spend from ~/.claude/projects JSONL");
+    console.log("              (--by-project | --json)");
     console.log("  up          Start collect + serve in one process (recommended)");
     console.log(
       "              (--port=N --collect-port=N --lan --host=IP --token=XXX --forward=URL)",
@@ -94,6 +97,9 @@ async function main(): Promise<number> {
   }
   if (cmd === "quota") {
     return await quotaCli(args.slice(1));
+  }
+  if (cmd === "history") {
+    return await historyCli(args.slice(1));
   }
   if (cmd === "up") {
     return await upCli(args.slice(1));
