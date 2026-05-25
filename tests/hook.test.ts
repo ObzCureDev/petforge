@@ -697,9 +697,7 @@ describe("runHook (state I/O)", () => {
       await hook.runHook("prompt", { session_id: "post-corrupt" }, Date.now());
     } catch (err) {
       threw = true;
-      expect(String((err as Error).message)).toContain(
-        "refusing to silently regenerate",
-      );
+      expect(String((err as Error).message)).toContain("refusing to silently regenerate");
     }
     expect(threw).toBe(true);
 

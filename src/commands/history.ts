@@ -25,10 +25,7 @@ export interface HistoryCliDeps {
 
 const out = (deps: HistoryCliDeps) => deps.writeOut ?? ((s: string) => process.stdout.write(s));
 
-export async function historyCli(
-  argv: string[],
-  deps: HistoryCliDeps = {},
-): Promise<number> {
+export async function historyCli(argv: string[], deps: HistoryCliDeps = {}): Promise<number> {
   const json = argv.includes("--json");
   const byProject = argv.includes("--by-project");
   const syncOtel = argv.includes("--sync-otel");
@@ -53,9 +50,7 @@ export async function historyCli(
   const elapsed = Date.now() - t0;
 
   if (totals.usageLinesScanned === 0) {
-    out(deps)(
-      `No assistant messages found in ${deps.projectsDir ?? defaultProjectsDir()}.\n`,
-    );
+    out(deps)(`No assistant messages found in ${deps.projectsDir ?? defaultProjectsDir()}.\n`);
     return 0;
   }
 
@@ -133,9 +128,7 @@ function formatHuman(
   lines.push("");
   lines.push("=== Claude Code lifetime spend ===");
   lines.push("");
-  lines.push(
-    `  Activity span: ${fmtDate(totals.oldestTs)}  -  ${fmtDate(totals.newestTs)}`,
-  );
+  lines.push(`  Activity span: ${fmtDate(totals.oldestTs)}  -  ${fmtDate(totals.newestTs)}`);
   lines.push(`  Messages:      ${totals.usageLinesScanned.toLocaleString()}`);
   lines.push(`  Files scanned: ${totals.filesScanned.toLocaleString()}`);
   lines.push("");
@@ -144,12 +137,8 @@ function formatHuman(
   lines.push(`  Cache read:       ${fmtTok(totals.total.cacheRead)}`);
   lines.push(`  Cache creation:   ${fmtTok(totals.total.cacheCreation)}`);
   lines.push("");
-  lines.push(
-    `  Actual cost (with cache discount): ${fmtCents(cost.total.paidCents)}`,
-  );
-  lines.push(
-    `  API-equivalent cost (no cache):    ${fmtCents(cost.total.apiEquivCents)}`,
-  );
+  lines.push(`  Actual cost (with cache discount): ${fmtCents(cost.total.paidCents)}`);
+  lines.push(`  API-equivalent cost (no cache):    ${fmtCents(cost.total.apiEquivCents)}`);
   lines.push(
     `  Cache savings:                     ${fmtCents(cost.total.savedCents)} ` +
       `(${((1 - 1 / Math.max(cost.total.multiplier, 1)) * 100).toFixed(0)}% off)`,

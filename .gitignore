@@ -5,3 +5,9 @@ coverage
 *.log
 .env
 .env.local
+
+# Personal pet-restoration utilities (not for distribution)
+scripts/restore-huddle.mjs
+scripts/restore-huddle-from-backup.mjs
+scripts/update-huddle-counters.mjs
+scripts/promote-to-dragon.mjs

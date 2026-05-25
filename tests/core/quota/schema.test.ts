@@ -28,6 +28,7 @@ describe("quota/schema", () => {
       optIn: true,
       session5h: { utilization: 42, resetTs: 1_700_000_500 },
       weekly7d: { utilization: 20, resetTs: 1_700_600_000 },
+      opus7d: null,
       status: "allowed",
       burnRatePctPerMin: 0.3,
       recentSamples: [{ ts: 1, utilization: 40 }],

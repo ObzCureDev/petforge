@@ -70,10 +70,7 @@ export function pricingFor(modelName: string): ModelPricing {
  */
 export function computeApiEquivCostCents(otel: OtelCounters): number {
   const models = otel.modelUsage ?? {};
-  const totalInputAllModels = Object.values(models).reduce(
-    (acc, m) => acc + (m?.tokensIn ?? 0),
-    0,
-  );
+  const totalInputAllModels = Object.values(models).reduce((acc, m) => acc + (m?.tokensIn ?? 0), 0);
 
   // Edge case: no per-model breakdown at all - assume Opus for everything.
   if (totalInputAllModels === 0) {

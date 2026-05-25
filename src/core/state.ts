@@ -31,8 +31,8 @@ import { migrateV1ToV2, type V1State } from "./migrations/v1-to-v2.js";
 import { migrateV31Achievements } from "./migrations/v32-achievement-rename.js";
 import { HOOK_ERROR_LOG, LOCK_FILE, PETFORGE_DIR, STATE_FILE } from "./paths.js";
 import { generatePet } from "./pet-engine.js";
-import { createInitialState, type Pet, type State, StateSchema } from "./schema.js";
 import { createInitialQuota } from "./quota/schema.js";
+import { createInitialState, type Pet, type State, StateSchema } from "./schema.js";
 
 // ---------- Errors ----------
 
@@ -288,11 +288,7 @@ async function tryReadStateRaw(): Promise<State | null> {
   }
 }
 
-async function logWipeAttempt(
-  incoming: State,
-  existing: State,
-  trace: string,
-): Promise<void> {
+async function logWipeAttempt(incoming: State, existing: State, trace: string): Promise<void> {
   try {
     await ensurePetforgeDir();
     const logFile = path.join(PETFORGE_DIR, "wipe-investigation.log");

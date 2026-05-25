@@ -59,9 +59,10 @@ export const QuotaStateSchema = z.object({
   optIn: z.boolean(),
   session5h: QuotaWindowSchema.nullable(),
   weekly7d: QuotaWindowSchema.nullable(),
-  // V3.7.2 additive: nullable + optional so existing state files (without
-  // the field at all) still parse.
-  opus7d: QuotaWindowSchema.nullable().optional(),
+  // V3.7.2 additive: nullable + default(null) so existing state files
+  // (without the field at all) still parse, and the parsed output type
+  // matches the QuotaState interface (no `undefined`).
+  opus7d: QuotaWindowSchema.nullable().default(null),
   status: z.string(),
   // burnRatePctPerMin can legitimately be negative when utilization drops
   // between probes (5h reset window passed). The previous `nn` constraint

@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PetForge - Technical Review V1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #0f0d0a;
+    --bg-card: #1a1714;
+    --bg-card-alt: #231f1a;
+    --gold-primary: #c18832;
+    --gold-light: #d4a853;
+    --amber-accent: #e8a838;
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --teal: #2dd4bf;
+    --purple: #a78bfa;
+    --text-primary: #f5f0e8;
+    --text-secondary: #b5a890;
+    --text-muted: #7a6f60;
+    --border: #2d2820;
+  }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { display: flex; flex-direction: column; align-items: center; }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 40px 45px 60px;
+    background: var(--bg-dark);
+    position: relative;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  h1, h2, h3, h4 { font-family: 'Playfair Display', serif; font-weight: 600; color: var(--text-primary); }
+  h1 { font-size: 38pt; letter-spacing: -0.5px; }
+  h2 { font-size: 22pt; margin-bottom: 6px; }
+  h3 { font-size: 14pt; color: var(--gold-light); margin: 14px 0 8px; }
+  h4 { font-size: 11pt; color: var(--text-primary); margin: 8px 0 4px; }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--gold-primary);
+    font-size: 11pt;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .section-head { margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .section-sub { color: var(--text-secondary); font-size: 10pt; margin-top: 4px; }
+
+  /* Cover page */
+  .cover {
+    height: 297mm;
+    background: radial-gradient(ellipse at top, rgba(193,136,50,0.08) 0%, transparent 60%), var(--bg-dark);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 60px;
+  }
+  .cover-glyph {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9pt;
+    color: var(--gold-primary);
+    white-space: pre;
+    line-height: 1.15;
+    margin-bottom: 28px;
+    opacity: 0.85;
+  }
+  .cover-title { font-size: 56pt; font-weight: 700; letter-spacing: -1.5px; line-height: 1; }
+  .cover-title .gold { background: linear-gradient(135deg, var(--gold-light), var(--amber-accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .cover-subtitle { font-size: 16pt; color: var(--text-secondary); margin-top: 18px; font-family: 'DM Sans', sans-serif; font-weight: 400; max-width: 480px; }
+  .cover-badge {
+    margin-top: 36px;
+    display: inline-flex; gap: 8px; align-items: center;
+    padding: 8px 18px;
+    background: rgba(193,136,50,0.1);
+    border: 1px solid rgba(193,136,50,0.35);
+    border-radius: 30px;
+    font-size: 9.5pt;
+    letter-spacing: 1.5px;
+    color: var(--gold-light);
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .cover-meta {
+    margin-top: 70px;
+    display: flex; gap: 38px;
+    color: var(--text-muted);
+    font-size: 9.5pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .cover-meta span strong { color: var(--gold-light); font-weight: 500; }
+  .cover-stats {
+    margin-top: 50px;
+    display: flex; gap: 50px;
+    padding-top: 36px;
+    border-top: 1px solid var(--border);
+    width: 100%;
+    justify-content: center;
+  }
+  .cover-stat { text-align: center; }
+  .cover-stat .v {
+    font-size: 26pt;
+    font-family: 'Playfair Display', serif;
+    color: var(--gold-light);
+    font-weight: 700;
+  }
+  .cover-stat .l { font-size: 8.5pt; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 16px;
+  }
+  .stat-card .v {
+    font-family: 'Playfair Display', serif;
+    font-size: 22pt;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--gold-light), var(--amber-accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    line-height: 1;
+  }
+  .stat-card .l { font-size: 8.5pt; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 8px; }
+  .stat-card .s { font-size: 8pt; color: var(--text-secondary); margin-top: 4px; }
+
+  /* Distribution bar */
+  .dist {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 22px;
+  }
+  .dist-bar { height: 22px; border-radius: 6px; overflow: hidden; display: flex; margin: 10px 0 12px; }
+  .dist-seg { display: flex; align-items: center; justify-content: center; font-size: 8pt; color: rgba(15,13,10,0.8); font-weight: 600; }
+  .dist-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 9pt; color: var(--text-secondary); }
+  .dist-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+  /* Note box */
+  .note-box {
+    background: linear-gradient(135deg, rgba(193,136,50,0.08), rgba(193,136,50,0.03));
+    border: 1px solid rgba(193,136,50,0.2);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-top: 14px;
+    font-size: 10pt;
+    color: var(--text-secondary);
+  }
+  .note-box strong { color: var(--gold-light); font-weight: 600; }
+
+  /* Changelog */
+  .changelog-item { margin-bottom: 16px; padding-left: 14px; border-left: 2px solid var(--border); }
+  .changelog-item:hover { border-left-color: var(--gold-primary); }
+  .changelog-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .badge-new { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid rgba(52,211,153,0.3); }
+  .badge-update { background: rgba(96,165,250,0.15); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
+  .badge-fix { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+  .badge-ship { background: rgba(193,136,50,0.15); color: var(--gold-light); border: 1px solid rgba(193,136,50,0.3); }
+  .changelog-title { font-weight: 600; font-size: 11pt; color: var(--text-primary); }
+  .changelog-date { font-size: 8.5pt; color: var(--text-muted); margin-left: auto; font-family: 'JetBrains Mono', monospace; }
+  .changelog-body { font-size: 9.5pt; color: var(--text-secondary); margin-left: 0; }
+
+  /* Tech grid */
+  .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+  .tech-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 14px 16px;
+  }
+  .tech-name { font-weight: 600; font-size: 11pt; color: var(--text-primary); }
+  .tech-version { display: inline-block; margin-left: 8px; font-family: 'JetBrains Mono', monospace; font-size: 8.5pt; color: var(--gold-light); }
+  .tech-why { font-size: 9pt; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+
+  /* Feature grid */
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .feature-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 11px 14px;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .feature-item.new { border-color: rgba(193,136,50,0.3); background: rgba(193,136,50,0.04); }
+  .f-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .f-content { flex: 1; }
+  .f-title { font-size: 10pt; font-weight: 600; color: var(--text-primary); }
+  .f-desc { font-size: 8.5pt; color: var(--text-secondary); line-height: 1.45; margin-top: 2px; }
+  .star { color: var(--gold-light); margin-right: 4px; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 9.5pt;
+    margin-bottom: 16px;
+  }
+  th, td { padding: 10px 12px; text-align: left; }
+  thead th {
+    background: var(--bg-card-alt);
+    color: var(--gold-light);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 8.5pt;
+    letter-spacing: 1.2px;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th:first-child { border-top-left-radius: 8px; }
+  thead th:last-child { border-top-right-radius: 8px; }
+  tbody td { background: var(--bg-card); border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:last-child td:first-child { border-bottom-left-radius: 8px; }
+  tbody tr:last-child td:last-child { border-bottom-right-radius: 8px; }
+  tbody td.num { font-family: 'JetBrains Mono', monospace; color: var(--gold-light); }
+  tbody td.name { color: var(--text-primary); font-weight: 500; }
+
+  /* Price table */
+  .price-table { margin-top: 8px; }
+  .price-table tbody td { padding: 12px 14px; }
+  .price-table tbody td.amount {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--gold-light);
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .price-total td {
+    background: rgba(193,136,50,0.08) !important;
+    color: var(--text-primary) !important;
+    font-weight: 600;
+    font-size: 11pt;
+  }
+  .price-total td.amount { color: var(--gold-light) !important; font-size: 13pt; }
+
+  /* Checklist */
+  .checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
+  .check {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0;
+    font-size: 9.5pt;
+    color: var(--text-secondary);
+    border-bottom: 1px dashed rgba(45,40,32,0.6);
+  }
+  .check-icon { width: 18px; flex-shrink: 0; text-align: center; font-weight: 600; }
+  .check-done .check-icon { color: var(--green); }
+  .check-warn .check-icon { color: var(--yellow); }
+  .check-miss .check-icon { color: var(--red); }
+  .check-new .check-icon { color: var(--gold-light); }
+  .check strong { color: var(--text-primary); font-weight: 500; }
+
+  /* Valuation headline */
+  .val-headline {
+    background: linear-gradient(135deg, rgba(193,136,50,0.12), rgba(193,136,50,0.04));
+    border: 1px solid rgba(193,136,50,0.35);
+    border-radius: 12px;
+    padding: 30px 36px;
+    margin-bottom: 22px;
+    text-align: center;
+  }
+  .val-headline .v {
+    font-family: 'Playfair Display', serif;
+    font-size: 44pt;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--gold-light), var(--amber-accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    line-height: 1;
+  }
+  .val-headline .l { font-size: 10pt; color: var(--text-secondary); letter-spacing: 2px; text-transform: uppercase; margin-top: 8px; font-family: 'JetBrains Mono', monospace; }
+  .val-headline .h { font-size: 9pt; color: var(--text-muted); margin-top: 14px; }
+
+  /* Footer */
+  .footer {
+    position: absolute;
+    bottom: 20px; left: 45px; right: 45px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 8pt;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+  .footer .page-num { color: var(--gold-light); font-weight: 500; }
+  .footer-brand strong { color: var(--text-secondary); }
+
+  /* Misc */
+  .mono { font-family: 'JetBrains Mono', monospace; color: var(--gold-light); font-size: 9pt; }
+  .lead { font-size: 11pt; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.65; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================= -->
+<!-- PAGE 1 - COVER                                                 -->
+<!-- ============================================================= -->
+<section class="page cover">
+  <div class="cover-glyph">         .---.
+        /     \
+       | () () |
+        \  ^  /
+         '---'
+        /|   |\
+       d |___| b</div>
+  <div class="cover-badge">Technical Review &middot; V1</div>
+  <h1 class="cover-title"><span class="gold">PetForge</span></h1>
+  <p class="cover-subtitle">Local-first RPG progression layer for AI coding companions. Node.js CLI + PWA + OpenTelemetry collector.</p>
+
+  <div class="cover-meta">
+    <span><strong>Release</strong> 3.7.0</span>
+    <span><strong>License</strong> Apache 2.0</span>
+    <span><strong>Date</strong> 25 May 2026</span>
+  </div>
+
+  <div class="cover-stats">
+    <div class="cover-stat"><div class="v">10.8K</div><div class="l">Lines of TS</div></div>
+    <div class="cover-stat"><div class="v">120</div><div class="l">Commits</div></div>
+    <div class="cover-stat"><div class="v">461</div><div class="l">Tests</div></div>
+    <div class="cover-stat"><div class="v">52</div><div class="l">Achievements</div></div>
+    <div class="cover-stat"><div class="v">18</div><div class="l">Species</div></div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 2 - OVERVIEW                                              -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">01 / Overview</div>
+    <h2>Project at a glance</h2>
+    <p class="section-sub">A 24-day sprint from initial commit to a feature-complete v3.7 release, published to npm.</p>
+  </div>
+
+  <p class="lead">PetForge gives terminal users a deterministic ASCII pet that levels up from real coding activity. It listens to Claude Code's five official hooks, translates each event into XP, evolves the pet across six phases, and unlocks medal-tiered achievements - hook-driven plus optional OpenTelemetry-gated tiers. A built-in HTTP+SSE server streams the same state to a phone-installable PWA. Zero telemetry, fully local.</p>
+
+  <div class="stats-grid">
+    <div class="stat-card"><div class="v">10 767</div><div class="l">Lines of TypeScript</div><div class="s">strict mode, 1 explicit any</div></div>
+    <div class="stat-card"><div class="v">90</div><div class="l">Source Files</div><div class="s">83 .ts/.tsx + assets</div></div>
+    <div class="stat-card"><div class="v">120</div><div class="l">Git Commits</div><div class="s">since 30 Apr 2026</div></div>
+    <div class="stat-card"><div class="v">382 KB</div><div class="l">Single ESM Bundle</div><div class="s">tsup, zero deps at runtime beyond peer</div></div>
+    <div class="stat-card"><div class="v">18</div><div class="l">Species ASCII Generators</div><div class="s">across 5 rarity tiers + shiny</div></div>
+    <div class="stat-card"><div class="v">52</div><div class="l">Achievements</div><div class="s">14 families &times; bronze/silver/gold/platinum</div></div>
+    <div class="stat-card"><div class="v">14</div><div class="l">CLI Commands</div><div class="s">init, watch, card, up, serve, collect, history...</div></div>
+    <div class="stat-card"><div class="v">461</div><div class="l">Test Cases</div><div class="s">36 files, 7K LoC, Vitest</div></div>
+  </div>
+
+  <div class="dist">
+    <h4>Source code distribution by module</h4>
+    <div class="dist-bar">
+      <div class="dist-seg" style="background:#c18832; width:38%">38% Core</div>
+      <div class="dist-seg" style="background:#d4a853; width:27%">27% Commands</div>
+      <div class="dist-seg" style="background:#e8a838; width:22%">22% Web/Render</div>
+      <div class="dist-seg" style="background:#a78bfa; width:10%">10% Species</div>
+      <div class="dist-seg" style="background:#60a5fa; width:3%">3% Settings</div>
+    </div>
+    <div class="dist-legend">
+      <span><span class="dist-dot" style="background:#c18832"></span>core (state, achievements, xp, schema, otel, quota, service)</span>
+      <span><span class="dist-dot" style="background:#d4a853"></span>commands (CLI handlers)</span>
+      <span><span class="dist-dot" style="background:#e8a838"></span>web view + Ink components</span>
+      <span><span class="dist-dot" style="background:#a78bfa"></span>18 species generators</span>
+      <span><span class="dist-dot" style="background:#60a5fa"></span>settings.json patcher</span>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>Architecture in one sentence.</strong> A single TypeScript ESM bundle that owns one JSON state file (<span class="mono">~/.petforge/state.json</span>), exposes 14 CLI subcommands, runs two optional local servers (HTTP+SSE on 7878, OTel on 7879), and patches the user's Claude Code <span class="mono">settings.json</span> to register five event hooks. Cross-process state writes are guarded by <span class="mono">proper-lockfile</span> with a Windows-specific EPERM/EBUSY retry. All side effects are confined to <span class="mono">~/.petforge/</span> and <span class="mono">~/.claude/settings.json</span> (the latter with a <span class="mono">.bak</span> trail).
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1</div>
+    <div class="page-num">02</div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 3 - RELEASE HISTORY                                       -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">02 / Release History</div>
+    <h2>From V1 to V3.7 in 24 days</h2>
+    <p class="section-sub">Genesis commit on 30 Apr 2026, npm release on 11 May 2026, V3.7 quota tracker shipped 20 May 2026.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-ship">Ship</span>
+      <span class="changelog-title">V3.7.5 - State write boundary hardening</span>
+      <span class="changelog-date">24 May 2026</span>
+    </div>
+    <p class="changelog-body">"Wipe killer" guard added at the <span class="mono">writeStateAtomic</span> boundary - refuses to commit a state mutation that would zero out the pet, level, or counters without an explicit sentinel. Defense against a class of subagent-induced state wipes observed in earlier sessions.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-fix">Fix</span>
+      <span class="changelog-title">V3.7.4 - Dedup by message.id + daily auto-backup</span>
+      <span class="changelog-date">23 May 2026</span>
+    </div>
+    <p class="changelog-body">JSONL ingest now deduplicates by <span class="mono">message.id</span> rather than line offset. <span class="mono">~/.petforge/state.json</span> gets a per-day rolling backup. Web view surfaces real API cost on the activity line.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-new">New</span>
+      <span class="changelog-title">V3.7 - <code>petforge history</code> + quota tracker</span>
+      <span class="changelog-date">20 May 2026</span>
+    </div>
+    <p class="changelog-body">Two big shipments. <strong>(a)</strong> Opt-in 5h / 7d rate-limit gauge with daemon co-orchestration via <span class="mono">up --quota</span>, mood reactivity above 80% utilization, and 6 new <span class="mono">quota_*</span> achievements (46 -&gt; 52). <strong>(b)</strong> <span class="mono">petforge history</span> derives lifetime API spend by ingesting <span class="mono">~/.claude/projects/**/*.jsonl</span> directly, with a <span class="mono">--sync-otel</span> flag to overwrite <span class="mono">state.counters.otel</span> with the JSONL ground truth.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-new">New</span>
+      <span class="changelog-title">V3.6 - Cross-platform <code>service install</code></span>
+      <span class="changelog-date">11 May 2026 &middot; npm publish</span>
+    </div>
+    <p class="changelog-body">User-mode auto-start across Windows (<span class="mono">schtasks</span>), macOS (<span class="mono">launchd</span> LaunchAgent), and Linux (<span class="mono">systemd --user</span>). No admin / sudo. Per-platform <span class="mono">ServiceManager</span> behind an <span class="mono">exec</span> indirection so the orchestrator is unit-testable without invoking real binaries. <strong>First npm release.</strong></p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-update">Update</span>
+      <span class="changelog-title">V3.5 - Two-tier session prune + marathon save</span>
+      <span class="changelog-date">3 May 2026</span>
+    </div>
+    <p class="changelog-body">Distinguishes <span class="mono">claude -p</span> batch subprocesses (toolless, prune at 30 min) from interactive sessions (prune at 24 h). Marathon medals are saved at prune time so a 25h session caught during the next hook doesn't silently lose its <span class="mono">marathon_24h</span>.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-update">Update</span>
+      <span class="changelog-title">V3.3 / V3.4 - 4-card PWA layout + collapsible categories</span>
+      <span class="changelog-date">2 May 2026</span>
+    </div>
+    <p class="changelog-body">Web view restructured into four distinct cards: PET (with derived Mood / Trait / Next evolution), CURRENT RUN (RUN + DEV lines), STATS, ACHIEVEMENTS. The achievements panel becomes seven collapsible categories with a virtual "Near completion" group that auto-appears for items past 70% target.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-new">New</span>
+      <span class="changelog-title">V3.2 - 46 medal-tiered achievements</span>
+      <span class="changelog-date">1 May 2026</span>
+    </div>
+    <p class="changelog-body">13 medal families, each with bronze / silver / gold tiers (streak adds platinum at 30K XP), plus the 6-step hatch phase ladder. Backfill runs on every hook event - upgraders are credited retroactively for thresholds they already crossed.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-new">New</span>
+      <span class="changelog-title">V2 - OpenTelemetry collector</span>
+      <span class="changelog-date">30 Apr - 1 May 2026</span>
+    </div>
+    <p class="changelog-body">OTLP/HTTP/JSON collector binds strictly to 127.0.0.1 on port 7879, ingests Claude Code's tokens / cost / lines / cache metrics, and unlocks 21 OTel-gated achievements (code lines, tokens, cache, frugal, big spender, PR, picky). Optional fan-out to Datadog / Honeycomb / Grafana Cloud via <span class="mono">PETFORGE_OTEL_FORWARD</span>.</p>
+  </div>
+
+  <div class="changelog-item">
+    <div class="changelog-head">
+      <span class="badge badge-new">New</span>
+      <span class="changelog-title">V1 - Initial design + implementation</span>
+      <span class="changelog-date">30 Apr 2026</span>
+    </div>
+    <p class="changelog-body">Hooks-based engine, 18 species, 6 evolution phases, lockfile state writes, ASCII rendering. Specs and implementation plan committed alongside code under <span class="mono">docs/superpowers/</span>.</p>
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1</div>
+    <div class="page-num">03</div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 4 - TECH STACK                                            -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">03 / Tech Stack</div>
+    <h2>Runtime, build, and platform</h2>
+    <p class="section-sub">Single-file ESM, strict TypeScript, Vitest, Biome. No web framework, no bundler at runtime.</p>
+  </div>
+
+  <h3>Runtime & language</h3>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-name">Node.js<span class="tech-version">&ge;20</span></div>
+      <div class="tech-why">ESM-only target. <span class="mono">--experimental-vm-modules</span> not needed; modern <span class="mono">node:</span> imports throughout.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">TypeScript<span class="tech-version">5.9.3</span></div>
+      <div class="tech-why">Strict mode, exhaustive switch checks, 1 explicit <span class="mono">any</span> across 10.8K LoC. Type errors fail <span class="mono">prepublishOnly</span>.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">tsup<span class="tech-version">8.5.1</span></div>
+      <div class="tech-why">esbuild-backed bundler. Outputs a single ESM <span class="mono">dist/index.js</span> at 382 KB - the entire CLI in one file.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">Biome<span class="tech-version">2.4.13</span></div>
+      <div class="tech-why">Linter + formatter in one Rust binary. Replaces ESLint + Prettier. Gates <span class="mono">prepublishOnly</span>.</div>
+    </div>
+  </div>
+
+  <h3>Engine libraries</h3>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-name">Ink<span class="tech-version">7.0.1</span></div>
+      <div class="tech-why">React-for-CLIs from Vadim Demedes. Powers the <span class="mono">watch</span> animation, <span class="mono">card</span> snapshot, and cinematic level-up overlays. Renders into a Yoga flexbox layout.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">React<span class="tech-version">19.2.5</span></div>
+      <div class="tech-why">Required as Ink's renderer host. Concurrent features unused; this is a strict reconciler-only consumer.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">Zod<span class="tech-version">4.4.1</span></div>
+      <div class="tech-why">State schema validation on read with <span class="mono">schemaVersion</span>-tagged migrations. Guards against partial/corrupted state files.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">proper-lockfile<span class="tech-version">4.1.2</span></div>
+      <div class="tech-why">Cross-process advisory lock on <span class="mono">~/.petforge/.lock</span> for the read-mutate-write cycle. Windows EPERM/EBUSY are retried.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">chalk<span class="tech-version">5.6.2</span></div>
+      <div class="tech-why">ANSI color rendering. Drives the rarity glow palette (common / uncommon / rare / epic / legendary) and shiny rainbow overlay.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">figlet<span class="tech-version">1.11.0</span></div>
+      <div class="tech-why">ASCII banner generation for cinematic level-ups, hatch milestones, and the <span class="mono">card</span> header.</div>
+    </div>
+  </div>
+
+  <h3>Quality & testing</h3>
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-name">Vitest<span class="tech-version">4.1.5</span></div>
+      <div class="tech-why">36 spec files, 461 test cases, 7K LoC of tests. Covers state migrations, hook events, achievement backfill, OTel ingest, quota probe, and per-platform service manager mocking.</div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-name">ink-testing-library<span class="tech-version">4.0.0</span></div>
+      <div class="tech-why">Headless renderer for Ink components. Lets the <span class="mono">card</span> / <span class="mono">watch</span> output be asserted against without a real TTY.</div>
+    </div>
+  </div>
+
+  <h3>Infrastructure surface</h3>
+  <div class="note-box">
+    <strong>Two local servers, both opt-in.</strong> Port <span class="mono">7878</span> binds to <span class="mono">127.0.0.1</span> by default (<span class="mono">0.0.0.0</span> with <span class="mono">--lan</span>) and serves the HTML + SSE web view. Port <span class="mono">7879</span> always binds to <span class="mono">127.0.0.1</span> only and accepts OTLP/HTTP/JSON metric payloads. Optional shared-secret token authentication via <span class="mono">--token=XXX</span>. Optional OTel fan-out to a downstream collector (Datadog, Honeycomb, Grafana Cloud) via <span class="mono">PETFORGE_OTEL_FORWARD</span>. No vendor lock-in; no remote dependency for the core experience.
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1</div>
+    <div class="page-num">04</div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 5 - FEATURE INVENTORY                                     -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">04 / Feature Inventory</div>
+    <h2>What ships</h2>
+    <p class="section-sub">14 CLI subcommands, 52 achievements, 18 species, 6 evolution phases, 1 PWA, 1 OTel collector.</p>
+  </div>
+
+  <h3>Engine</h3>
+  <div class="feature-grid">
+    <div class="feature-item"><div class="f-dot" style="background:var(--gold-primary)"></div><div class="f-content"><div class="f-title">Deterministic pet generation</div><div class="f-desc"><span class="mono">sha256(username + hostname)</span> seed picks rarity bucket first, then species + 5 derived stats. Same machine = same pet, always.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--gold-primary)"></div><div class="f-content"><div class="f-title">5 Claude Code hooks</div><div class="f-desc"><span class="mono">UserPromptSubmit</span> +5 / <span class="mono">PostToolUse</span> +1 / <span class="mono">Stop</span> +10 / <span class="mono">SessionStart</span> / <span class="mono">SessionEnd</span> +50. Zero polling.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--gold-primary)"></div><div class="f-content"><div class="f-title">Atomic locked state writes</div><div class="f-desc"><span class="mono">proper-lockfile</span> + write-to-temp + rename. Windows EPERM/EBUSY retry. Cross-process safe.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--gold-primary)"></div><div class="f-content"><div class="f-title">Zod-validated schema with migrations</div><div class="f-desc"><span class="mono">schemaVersion</span>-tagged state, migration chain on read. Forward-compatible additive fields.</div></div></div>
+  </div>
+
+  <h3>Progression</h3>
+  <div class="feature-grid">
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">6 evolution phases</div><div class="f-desc">Egg / Hatchling / Junior / Adult / Elder / Mythic - level 1 through 100, interpolated XP curve.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">18 deterministic species</div><div class="f-desc">7 common / 4 uncommon / 4 rare / 2 epic / 1 legendary. Per-species ASCII generator.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">Shiny variant (1%)</div><div class="f-desc">Independent rainbow overlay. Any species, any rarity.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">52 achievements, 14 families</div><div class="f-desc">Bronze / silver / gold / platinum tiers. Idempotent backfill on every hook event.</div></div></div>
+  </div>
+
+  <h3>Display surfaces</h3>
+  <div class="feature-grid">
+    <div class="feature-item"><div class="f-dot" style="background:var(--teal)"></div><div class="f-content"><div class="f-title">Terminal snapshot &amp; live watch</div><div class="f-desc">8 FPS animation, 500ms state refresh, Ctrl+C / q to exit. Ink-rendered.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--teal)"></div><div class="f-content"><div class="f-title">PWA web view (4 cards)</div><div class="f-desc">PET / CURRENT RUN / STATS / ACHIEVEMENTS + NEXT GOALS. Installable manifest + 512&times;512 icon.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--teal)"></div><div class="f-content"><div class="f-title">Server-Sent Events stream</div><div class="f-desc">~50 ms phone update per hook event, auto-reconnect on disconnect. Read-only - never mutates state.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--teal)"></div><div class="f-content"><div class="f-title">LAN access with shared-secret token</div><div class="f-desc"><span class="mono">--lan</span> + <span class="mono">--host=IP</span> + <span class="mono">--token=XXX</span>. Header or query param.</div></div></div>
+  </div>
+
+  <h3>Integrations &amp; ops</h3>
+  <div class="feature-grid">
+    <div class="feature-item new"><div class="f-dot" style="background:var(--gold-light)"></div><div class="f-content"><div class="f-title"><span class="star">&#9733;</span>Cross-platform service install</div><div class="f-desc">User-mode auto-start on Windows / macOS / Linux. No sudo. Idempotent. (V3.6)</div></div></div>
+    <div class="feature-item new"><div class="f-dot" style="background:var(--gold-light)"></div><div class="f-content"><div class="f-title"><span class="star">&#9733;</span>Quota tracker (5h + 7d)</div><div class="f-desc">Opt-in. JSONL-mtime gate prevents idle API calls. Mood flips stressed/panic at 80% / 95%. (V3.7)</div></div></div>
+    <div class="feature-item new"><div class="f-dot" style="background:var(--gold-light)"></div><div class="f-content"><div class="f-title"><span class="star">&#9733;</span><code>petforge history</code></div><div class="f-desc">Reads <span class="mono">~/.claude/projects/**/*.jsonl</span> for lifetime spend, dedups by <span class="mono">message.id</span>. <span class="mono">--sync-otel</span> rewrites state counters. (V3.7)</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">OpenTelemetry collector</div><div class="f-desc">OTLP/HTTP/JSON on 127.0.0.1:7879. Fan-out to Datadog / Honeycomb / Grafana Cloud.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">Buddy import (manual, consensual)</div><div class="f-desc">From file or stdin, max 32 KB. Auto-parses name / rarity / stars / stat lines. Strips parsed stats from rendered visual.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">One-command orchestration</div><div class="f-desc"><span class="mono">petforge up [--lan] [--quota]</span> runs collect + serve (+ quota daemon), single Ctrl+C kills all.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">Cinematic level-up &amp; medal overlays</div><div class="f-desc">figlet-rendered banners on phase boundary + medal-tier unlocks. Web view and CLI.</div></div></div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1</div>
+    <div class="page-num">05</div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 6 - COMPONENT ARCHITECTURE                                -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">05 / Component Architecture</div>
+    <h2>Files, modules, responsibilities</h2>
+    <p class="section-sub">Top files by line count, then a per-command map of what owns what.</p>
+  </div>
+
+  <h3>Largest source files</h3>
+  <table>
+    <thead><tr><th>File</th><th>LOC</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td class="name">render/web/page.ts</td><td class="num">1 303</td><td>Inlined PWA HTML + CSS + client JS. SSE consumer, four-card layout, collapsible achievement categories, NEXT GOALS card.</td></tr>
+      <tr><td class="name">core/achievements.ts</td><td class="num">760</td><td>14 achievement families, medal-tier evaluators, idempotent backfill, "Near completion" virtual group selection.</td></tr>
+      <tr><td class="name">core/state.ts</td><td class="num">552</td><td>Atomic locked read / mutate / write cycle. <span class="mono">writeStateAtomic</span> wipe-killer (V3.7.5). Cross-process safety.</td></tr>
+      <tr><td class="name">commands/serve.ts</td><td class="num">492</td><td>HTTP + SSE server. Token auth. Read-only state streaming. Auto-detected LAN IP with <span class="mono">--host</span> override.</td></tr>
+      <tr><td class="name">commands/hook.ts</td><td class="num">425</td><td>Hook event dispatcher. XP attribution, session lifecycle, prune scheduling, achievement check / backfill orchestration.</td></tr>
+      <tr><td class="name">commands/doctor.ts</td><td class="num">425</td><td>Health check: hooks installed, state valid, OTel reachable, Buddy import status, service auto-start state.</td></tr>
+      <tr><td class="name">core/schema.ts</td><td class="num">389</td><td>Zod state shape + <span class="mono">schemaVersion</span> migration chain. Validates on read.</td></tr>
+      <tr><td class="name">core/buddy.ts</td><td class="num">326</td><td>Card parser (name / species / rarity / stars / stats), render-time stat strip, cardCache persistence.</td></tr>
+      <tr><td class="name">commands/collect.ts</td><td class="num">309</td><td>OTLP/HTTP/JSON ingest + fan-out. Strict 127.0.0.1 bind. Aggregation feeds OTel-gated achievements.</td></tr>
+      <tr><td class="name">settings/claude-config.ts</td><td class="num">294</td><td>Patches <span class="mono">~/.claude/settings.json</span> with hook entries + optional OTel env vars. Backup + idempotent.</td></tr>
+      <tr><td class="name">core/history/scanner.ts</td><td class="num">236</td><td>JSONL ingest from <span class="mono">~/.claude/projects/**/*.jsonl</span>, dedup by <span class="mono">message.id</span> (V3.7.4).</td></tr>
+      <tr><td class="name">core/service/windows.ts</td><td class="num">225</td><td>schtasks-based Scheduled Task install / uninstall / status with <span class="mono">exec</span> indirection for mocking.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>CLI command surface</h3>
+  <table>
+    <thead><tr><th>Command</th><th>Module</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td class="name mono">init</td><td>commands/init.ts</td><td>One-time setup. Patches Claude Code <span class="mono">settings.json</span> with hooks (+ optional <span class="mono">--otel</span> env).</td></tr>
+      <tr><td class="name mono">card</td><td>commands/card.tsx</td><td>Full status card: pet visual, name/rarity, stats, XP bar, achievements, activity, quotas.</td></tr>
+      <tr><td class="name mono">watch</td><td>commands/watch.tsx</td><td>Live mode: 8 FPS animation, 500ms refresh, ends on Ctrl+C / q.</td></tr>
+      <tr><td class="name mono">serve</td><td>commands/serve.ts</td><td>HTTP + SSE web view. Loopback by default, <span class="mono">--lan</span> for phone access.</td></tr>
+      <tr><td class="name mono">collect</td><td>commands/collect.ts</td><td>OTLP/HTTP/JSON collector. Strict 127.0.0.1.</td></tr>
+      <tr><td class="name mono">up</td><td>commands/up.ts</td><td>Recommended. Runs collect + serve (+ quota daemon) in one process.</td></tr>
+      <tr><td class="name mono">hook</td><td>commands/hook.ts</td><td>Internal dispatcher invoked by Claude Code. Always exits 0.</td></tr>
+      <tr><td class="name mono">doctor</td><td>commands/doctor.ts</td><td>Health check across hooks / state / OTel / Buddy / service.</td></tr>
+      <tr><td class="name mono">buddy</td><td>commands/buddy.ts</td><td>Toggle / import / clear the Buddy visual override.</td></tr>
+      <tr><td class="name mono">service</td><td>commands/service.ts</td><td>install / uninstall / status user-mode auto-start.</td></tr>
+      <tr><td class="name mono">quota</td><td>commands/quota.ts</td><td>enable / disable / --json rate-limit gauge.</td></tr>
+      <tr><td class="name mono">history</td><td>commands/history.ts</td><td>Lifetime spend from local Claude Code JSONL. <span class="mono">--sync-otel</span> writes back.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1</div>
+    <div class="page-num">06</div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 7 - QUALITY AUDIT                                         -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">06 / Quality &amp; Safety Audit</div>
+    <h2>What's in good shape, what isn't</h2>
+    <p class="section-sub">Cross-cut review of correctness, safety, privacy, and DX.</p>
+  </div>
+
+  <h3>Code quality</h3>
+  <div class="checklist">
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>TypeScript strict mode</strong> across 10.8K LoC, 1 explicit <span class="mono">any</span></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Biome lint + format</strong> gate <span class="mono">prepublishOnly</span></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>461 Vitest cases</strong> across 36 files, 7K LoC</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>typecheck</strong> required before publish</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Single-file ESM bundle</strong> via tsup at 252 KB</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Zero runtime telemetry</strong>, no analytics call</div></div>
+  </div>
+
+  <h3>Safety &amp; correctness</h3>
+  <div class="checklist">
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Cross-process state lock</strong> via <span class="mono">proper-lockfile</span></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Atomic write-to-temp + rename</strong> in <span class="mono">writeStateAtomic</span></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Windows EPERM/EBUSY retry</strong> on state writes</div></div>
+    <div class="check check-new"><div class="check-icon">&#10031;</div><div><strong>Wipe-killer sentinel</strong> at write boundary (V3.7.5)</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Zod-validated schema</strong> with migrations on read</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Hooks never crash Claude</strong> - every path exits 0</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Idempotent achievement backfill</strong> on every event</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Two-tier session prune</strong> (toolless 30 min / interactive 24 h)</div></div>
+  </div>
+
+  <h3>Privacy &amp; network</h3>
+  <div class="checklist">
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Loopback default</strong> on web server, <span class="mono">--lan</span> opt-in</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>OTel collector pinned to 127.0.0.1</strong></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Shared-secret token auth</strong> via header or query</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>No Anthropic content redistributed</strong></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Buddy import is consensual</strong>, manual, 32 KB ceiling</div></div>
+    <div class="check check-warn"><div class="check-icon">!</div><div><strong>Quota uses undocumented headers</strong> (opt-in, fails soft)</div></div>
+  </div>
+
+  <h3>Distribution &amp; operability</h3>
+  <div class="checklist">
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>npm published</strong> as <span class="mono">@mindvisionstudio/petforge</span></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Tri-OS user-mode service</strong> install (Win / macOS / Linux)</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Doctor command</strong> covers every subsystem</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Best-effort error log</strong> at <span class="mono">~/.petforge/hook-errors.log</span></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Apache 2.0 license</strong>, MIT-clean dependency tree</div></div>
+    <div class="check check-warn"><div class="check-icon">!</div><div><strong>schtasks status parsing</strong> assumes English Windows locale</div></div>
+  </div>
+
+  <h3>DX &amp; documentation</h3>
+  <div class="checklist">
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>584-line README</strong> with quickstart, troubleshooting, port map</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Per-release CHANGELOG</strong> with rationale and behavior diffs</div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Design specs &amp; impl plans</strong> committed under <span class="mono">docs/superpowers/</span></div></div>
+    <div class="check check-done"><div class="check-icon">&#10003;</div><div><strong>Logo set</strong>: light + dark + true logos in <span class="mono">/logos</span></div></div>
+    <div class="check check-miss"><div class="check-icon">&times;</div><div><strong>No CI pipeline visible</strong> - <span class="mono">prepublishOnly</span> is the only gate</div></div>
+    <div class="check check-miss"><div class="check-icon">&times;</div><div><strong>No coverage reporting</strong> wired in (Vitest supports c8/v8)</div></div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1</div>
+    <div class="page-num">07</div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 8 - VALUATION                                             -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">07 / Valuation</div>
+    <h2>Replacement value</h2>
+    <p class="section-sub">What it would cost to rebuild this codebase from scratch at 2026 market rates for a senior Node/TypeScript engineer.</p>
+  </div>
+
+  <div class="val-headline">
+    <div class="v">&euro;30K - &euro;45K</div>
+    <div class="l">Estimated replacement cost</div>
+    <div class="h">Single-engineer engagement, ~3 months full-time including design, build, tests, packaging, and tri-OS verification.</div>
+  </div>
+
+  <h3>Breakdown by component</h3>
+  <table class="price-table">
+    <thead><tr><th>Component</th><th>What it includes</th><th style="text-align:right">Estimate</th></tr></thead>
+    <tbody>
+      <tr><td class="name">CLI engine &amp; state core</td><td>14 subcommands, atomic locked writes, Zod schema, migrations, paths, XP curve</td><td class="amount">&euro;4 500 - &euro;6 500</td></tr>
+      <tr><td class="name">18 species + 6 evolutions</td><td>Per-species ASCII generators, rarity glow palette, shiny overlay, deterministic seed</td><td class="amount">&euro;3 000 - &euro;4 500</td></tr>
+      <tr><td class="name">52 achievements engine</td><td>14 families &times; medal tiers, idempotent backfill, virtual "Near completion" group</td><td class="amount">&euro;3 500 - &euro;5 000</td></tr>
+      <tr><td class="name">5 Claude Code hooks + dispatcher</td><td>UserPromptSubmit / PostToolUse / Stop / SessionStart / SessionEnd, two-tier prune, marathon save</td><td class="amount">&euro;1 800 - &euro;2 500</td></tr>
+      <tr><td class="name">OpenTelemetry collector</td><td>OTLP/HTTP/JSON server, aggregation, fan-out, 21 OTel-gated achievements</td><td class="amount">&euro;2 500 - &euro;3 500</td></tr>
+      <tr><td class="name">PWA web view &amp; SSE server</td><td>HTTP+SSE on 7878, 4-card layout, manifest + 512&times;512 icon, token auth, LAN host override</td><td class="amount">&euro;3 000 - &euro;4 500</td></tr>
+      <tr><td class="name">Tri-OS service install</td><td>Windows schtasks, macOS launchd, Linux systemd-user, exec-indirection for unit tests</td><td class="amount">&euro;3 000 - &euro;4 500</td></tr>
+      <tr><td class="name">Quota tracker (V3.7)</td><td>5h + 7d gauge, JSONL-mtime gate, mood reactivity, 6 quota achievements, daemon orchestration</td><td class="amount">&euro;2 200 - &euro;3 200</td></tr>
+      <tr><td class="name">History command (V3.7)</td><td>JSONL ingest, dedup by message.id, lifetime spend, <span class="mono">--sync-otel</span> writeback, daily auto-backup</td><td class="amount">&euro;1 500 - &euro;2 500</td></tr>
+      <tr><td class="name">Buddy import &amp; parser</td><td>Card parser (name / species / rarity / stars / stats), render-time strip, cardCache</td><td class="amount">&euro;1 000 - &euro;1 500</td></tr>
+      <tr><td class="name">Test suite</td><td>461 cases, 36 files, 7K LoC, mocked OS subsystems for service install</td><td class="amount">&euro;3 500 - &euro;5 000</td></tr>
+      <tr><td class="name">Design, docs, branding, packaging</td><td>Logos, 584-line README, CHANGELOG, specs, plans, npm publish, badge set</td><td class="amount">&euro;1 500 - &euro;2 500</td></tr>
+      <tr class="price-total"><td colspan="2">Total replacement range</td><td class="amount">&euro;31K - &euro;45K</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note-box">
+    <strong>Monetization angle.</strong> PetForge is shipped Apache 2.0 with zero telemetry, so direct monetization is constrained by design. Adjacent value lives elsewhere: <em>(a)</em> it's a tested, trademark-clean, multi-OS Node/TS reference codebase suitable for a portfolio or case study; <em>(b)</em> the OTel collector + fan-out skeleton transfers to any Claude Code observability product; <em>(c)</em> the tri-OS user-mode service installer alone is a reusable module that maps cleanly into <a style="color:var(--gold-light)">AETHER OS</a> and other local-first agentic projects. The npm package itself is a brand asset for MindVision Studio and a recruiting signal.
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1</div>
+    <div class="page-num">08</div>
+  </div>
+</section>
+
+<!-- ============================================================= -->
+<!-- PAGE 9 - ROADMAP                                               -->
+<!-- ============================================================= -->
+<section class="page">
+  <div class="section-head">
+    <div class="section-num">08 / Roadmap</div>
+    <h2>What's next</h2>
+    <p class="section-sub">Items already on the table (in CHANGELOG / README / vault notes) plus longer-horizon ideas.</p>
+  </div>
+
+  <h3>Short term (V3.7.x / V3.8)</h3>
+  <div class="feature-grid">
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">Locale-independent service status on Windows</div><div class="f-desc">Replace schtasks output parsing with PowerShell <span class="mono">Get-ScheduledTask</span> to correctly report running tasks on non-English Windows locales.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">V3.6.1 reviewer backlog</div><div class="f-desc">Follow-ups identified during V3.6 reviews; tracked in the project's vault note.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">CI pipeline</div><div class="f-desc">GitHub Actions matrix: <span class="mono">node 20/22</span> &times; <span class="mono">windows-latest / macos-latest / ubuntu-latest</span> running <span class="mono">check + typecheck + test + build</span>.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--green)"></div><div class="f-content"><div class="f-title">Coverage reporting</div><div class="f-desc">Wire Vitest c8/v8 coverage into the test script, publish to README badge.</div></div></div>
+  </div>
+
+  <h3>Medium term (V4)</h3>
+  <div class="feature-grid">
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">Achievement filter tabs</div><div class="f-desc">All / In-progress / Locked / Completed tabs above the category accordions in the web view.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">Event store + heatmap card</div><div class="f-desc">Append-only <span class="mono">events.ndjson</span> alongside <span class="mono">state.json</span>, per-day heatmap card in <span class="mono">serve</span>.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">Cinematic milestone animations</div><div class="f-desc">Level-up and medal-tier celebrations on the web view (currently CLI-only).</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--blue)"></div><div class="f-content"><div class="f-title">VS Code / Antigravity panel</div><div class="f-desc">IDE-native side panel mirroring the 4-card PWA layout, fed by the SSE stream.</div></div></div>
+  </div>
+
+  <h3>Long term vision</h3>
+  <div class="feature-grid">
+    <div class="feature-item"><div class="f-dot" style="background:var(--purple)"></div><div class="f-content"><div class="f-title">Skin shop &amp; buddy variants</div><div class="f-desc">Cosmetic-only customization on top of the deterministic seed. Pet identity stays anchored to the hash.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--purple)"></div><div class="f-content"><div class="f-title">Opt-in multi-device sync</div><div class="f-desc">Encrypted state diff between machines for users who code on multiple hosts. End-to-end keyed.</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--purple)"></div><div class="f-content"><div class="f-title">More species + hardcore tier</div><div class="f-desc">Frog / fox / raven additions and a hardcore achievement layer above platinum (50K+ XP).</div></div></div>
+    <div class="feature-item"><div class="f-dot" style="background:var(--purple)"></div><div class="f-content"><div class="f-title">Integration into AETHER OS</div><div class="f-desc">PetForge as an embeddable progression panel inside MindVision's local-first agentic runtime.</div></div></div>
+  </div>
+
+  <div class="note-box" style="margin-top:18px">
+    <strong>Position relative to the broader stack.</strong> PetForge is the first MindVision project to ship a tri-OS user-mode service installer and an OTel-driven achievement engine. Both pieces are designed as transplantable modules. The OS service code already sits behind a clean <span class="mono">ServiceManager</span> interface; lifting it into an internal library is a 2 - 3 day refactor.
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand"><strong>PetForge</strong> &middot; Technical Review V1 &middot; 25 May 2026</div>
+    <div class="page-num">09</div>
+  </div>
+</section>
+
+</body>
+</html>

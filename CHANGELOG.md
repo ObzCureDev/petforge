@@ -1,5 +1,60 @@
 # Changelog
 
+## 3.7.6 - 2026-05-25
+
+### Features
+
+- **`petforge history --sync-otel`** - new flag overwrites `state.counters.otel` with the real lifetime totals derived from `~/.claude/projects/**/*.jsonl`. Use this once after upgrading to recover from any pre-V3.7.4 dedup drift between the OTel collector counters and the JSONL ground truth. Without the flag, `history` stays a read-only report.
+
+### Internal
+
+- Rolls up V3.7.1 through V3.7.5 into the first npm-published 3.7.x release after V3.7.0. See entries below for the full diff.
+
+## 3.7.5 - 2026-05-24
+
+### Fixes
+
+- **Wipe killer at `writeStateAtomic` boundary.** State writes that would zero out `pet`, `level`, or `counters` without an explicit sentinel are now refused at the lowest write level. Defense-in-depth on top of the multi-sentinel wipe protection from V3.7.3 - any subagent / script / hook path that bypasses the higher-level guards still cannot corrupt the file.
+
+## 3.7.4 - 2026-05-23
+
+### Fixes
+
+- **JSONL dedup by `message.id`** - `petforge history` and the OTel ingest path now dedup by `message.id` instead of file/offset, eliminating double-counting when Claude Code rewrites a JSONL line in place (which it does during retries).
+- **Daily auto-backup of `state.json`** - on the first write of each calendar day, the previous file is copied to `state.json.bak-YYYY-MM-DD`. Old backups are kept in place for manual cleanup; nothing is auto-deleted.
+- **Web view surfaces API-equivalent cost.** Already in V3.7.3, but the web HTML/SSE pipeline now reflects it on the CURRENT RUN / DEV line.
+
+## 3.7.3 - 2026-05-22
+
+### Features
+
+- **API-equivalent cost (no-cache rate).** `state.counters.otel.cost` and the cost columns shown in `card` / `serve` / `history` now report what the same prompts would have cost at the published API rate, ignoring cache discounts. Matches what `petforge history` reports from JSONL.
+
+### Fixes
+
+- **Multi-sentinel wipe protection.** State writes that would zero out the pet, the level, or counters without one of three explicit sentinels (`PETFORGE_ALLOW_RESET`, `--force-reset`, or a same-process owner token) are refused. Caught a class of subagent-induced wipes that V3.7.1's `.initialized` marker alone didn't cover.
+
+## 3.7.2 - 2026-05-21
+
+### Features
+
+- **`/claude-quota` HTTP endpoint** in `petforge serve` - JSON status of the 5h session + 7d weekly windows, designed to be polled by Home Assistant / Grafana / any local dashboard.
+- **Opus weekly window** awareness - the quota tracker now distinguishes the standard 7d weekly limit from the Opus-specific weekly limit when both apply.
+
+## 3.7.1 - 2026-05-21
+
+### Fixes
+
+Three back-to-back patches (V3.7.1, V3.7.1.1, V3.7.1.2 / V3.7.1.3) close every observed path that ended with a fresh-pet regeneration overwriting a real, leveled-up pet:
+
+- **V3.7.1** - `loadState` refuses to silently regenerate the pet when `state.json` is present but parse-fails. Throws with a clear `~/.petforge/state.json.corrupt-<ts>` save-aside instead of starting over.
+- **V3.7.1.1** - new `.initialized` marker file written alongside the first valid state. While the marker exists, the fresh-pet path is gated even if `state.json` is briefly absent (NTFS rename race seen on Windows during atomic writes).
+- **V3.7.1.2 / V3.7.1.3** - the quota probe and state writer stop replacing the in-memory pet snapshot with a fresh-generated default on transient I/O errors. Errors are surfaced and skipped; the prior snapshot stands.
+
+### Internal
+
+- Quota utilization is now normalized to `0 - 100` consistently across the probe, the achievement evaluator, and the web view. The QUOTAS card has been moved above CURRENT RUN.
+
 ## 3.7.0 - 2026-05-20
 
 ### Features

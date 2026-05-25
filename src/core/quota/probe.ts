@@ -98,7 +98,10 @@ export async function probe(token: string, opts: ProbeOptions = {}): Promise<Pro
   const r7 = response.headers.get("anthropic-ratelimit-unified-7d-reset");
   const weekly7d: QuotaWindow | null =
     u7 !== null && r7 !== null
-      ? { utilization: Math.round(Number.parseFloat(u7) * 10000) / 100, resetTs: Number.parseInt(r7, 10) }
+      ? {
+          utilization: Math.round(Number.parseFloat(u7) * 10000) / 100,
+          resetTs: Number.parseInt(r7, 10),
+        }
       : null;
 
   // V3.7.2 - Opus-specific weekly window. Anthropic exposes this on Max
@@ -108,7 +111,10 @@ export async function probe(token: string, opts: ProbeOptions = {}): Promise<Pro
   const r7o = response.headers.get("anthropic-ratelimit-unified-7d-opus-reset");
   const opus7d: QuotaWindow | null =
     u7o !== null && r7o !== null
-      ? { utilization: Math.round(Number.parseFloat(u7o) * 10000) / 100, resetTs: Number.parseInt(r7o, 10) }
+      ? {
+          utilization: Math.round(Number.parseFloat(u7o) * 10000) / 100,
+          resetTs: Number.parseInt(r7o, 10),
+        }
       : null;
 
   return { kind: "ok", session5h, weekly7d, opus7d, status: s5 ?? "" };

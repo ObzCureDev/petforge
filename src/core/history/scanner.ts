@@ -15,8 +15,7 @@
  * default) so a runaway scan can't hang indefinitely.
  */
 
-import { createReadStream } from "node:fs";
-import { promises as fs } from "node:fs";
+import { createReadStream, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
@@ -172,9 +171,19 @@ async function accumulateFile(
     }
     totals.usageLinesScanned++;
     applyUsage(totals.total, u);
-    applyUsage(totals.byModel[u.model] ?? (totals.byModel[u.model] = emptyUsage()), u);
+    let totalsBucket = totals.byModel[u.model];
+    if (!totalsBucket) {
+      totalsBucket = emptyUsage();
+      totals.byModel[u.model] = totalsBucket;
+    }
+    applyUsage(totalsBucket, u);
     applyUsage(pu, u);
-    applyUsage(pu.byModel[u.model] ?? (pu.byModel[u.model] = emptyUsage()), u);
+    let projectBucket = pu.byModel[u.model];
+    if (!projectBucket) {
+      projectBucket = emptyUsage();
+      pu.byModel[u.model] = projectBucket;
+    }
+    applyUsage(projectBucket, u);
     if (u.ts > 0) {
       if (totals.oldestTs === 0 || u.ts < totals.oldestTs) totals.oldestTs = u.ts;
       if (u.ts > totals.newestTs) totals.newestTs = u.ts;

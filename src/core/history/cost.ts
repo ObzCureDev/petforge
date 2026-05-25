@@ -41,8 +41,7 @@ function costFor(model: string, u: ModelUsage): CostBreakdown {
   const p = pricingFor(model);
   // Standard API rate for everything (no cache discount).
   const apiInputTokens = u.tokensIn + u.cacheRead + u.cacheCreation;
-  const apiEquivUsd =
-    (apiInputTokens * p.input) / 1_000_000 + (u.tokensOut * p.output) / 1_000_000;
+  const apiEquivUsd = (apiInputTokens * p.input) / 1_000_000 + (u.tokensOut * p.output) / 1_000_000;
 
   // Real Anthropic billing with cache discount applied.
   const paidUsd =

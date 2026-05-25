@@ -7,10 +7,11 @@ describe("quota/apply", () => {
   it("sets session/weekly + status + ts on success", () => {
     const q = createInitialQuota(0);
     q.optIn = true;
-    const ok: ProbeResult = {
+    const ok: Extract<ProbeResult, { kind: "ok" }> = {
       kind: "ok",
       session5h: { utilization: 40, resetTs: 1_700_000_500 },
       weekly7d: { utilization: 20, resetTs: 1_700_600_000 },
+      opus7d: null,
       status: "allowed",
     };
     applyProbeResult(q, ok, 1_000_000);
@@ -105,6 +106,7 @@ function mkOk(util: number, resetTs: number): ProbeResult {
     kind: "ok",
     session5h: { utilization: util, resetTs },
     weekly7d: null,
+    opus7d: null,
     status: "allowed",
   };
 }

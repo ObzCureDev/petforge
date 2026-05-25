@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-3.7.0-blue" alt="Version"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-3.7.6-blue" alt="Version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="Node ≥ 20"></a>
 </p>
@@ -540,11 +540,11 @@ PetForge is **fully local**:
 git clone https://github.com/ObzCureDev/petforge.git
 cd petforge
 npm install
-npm test             # vitest — 313 tests across 21 files
+npm test             # vitest - 461 tests across 36 files
 npm run check        # biome lint + format check
 npm run check:fix    # biome auto-fix
 npm run typecheck    # tsc --noEmit
-npm run build        # tsup production build (single ESM bundle ~216 KB)
+npm run build        # tsup production build (single ESM bundle ~380 KB)
 ```
 
 The codebase is ~9.6 KLoC TypeScript, strict mode, 0 type errors, 1 explicit `any`. Bundling is a single-file ESM via tsup; the published artifact is `dist/index.js`.
