@@ -19,7 +19,7 @@ const MARATHON_GOLD = 50;
 
 export function checkQuotaAchievements(state: State): AchievementId[] {
   const q = state.counters.quota;
-  if (!q || !q.optIn || q.lastProbeTs === 0) return [];
+  if (!q?.optIn || q.lastProbeTs === 0) return [];
 
   const newly: AchievementId[] = [];
   const tryUnlock = (id: AchievementId, condition: boolean): void => {

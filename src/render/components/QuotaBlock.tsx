@@ -12,7 +12,7 @@ export interface QuotaBlockProps {
 }
 
 export function QuotaBlock({ quota }: QuotaBlockProps): React.ReactElement | null {
-  if (!quota || !quota.optIn) return null;
+  if (!quota?.optIn) return null;
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text bold>QUOTAS</Text>
