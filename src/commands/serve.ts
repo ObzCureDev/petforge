@@ -27,6 +27,8 @@ import http from "node:http";
 import os from "node:os";
 import { STATE_FILE } from "../core/paths.js";
 import type { State } from "../core/schema.js";
+import { computeSpend } from "../core/spend/compute.js";
+import type { SpendSnapshot } from "../core/spend/schema.js";
 import { readState, StateCorruptError, StateNotFoundError } from "../core/state.js";
 import {
   ICON_JPEG_BUFFER,
@@ -49,6 +51,14 @@ export interface ServeOptions {
    * (Tailscale, mDNS, custom DNS).
    */
   host?: string;
+  /**
+   * How often to re-scan ~/.claude/projects for the corrected-lifetime +
+   * today spend figures. Default 10 min. Set 0 to disable the spend feature
+   * entirely (no scan, no SPEND row).
+   */
+  spendRefreshMs?: number;
+  /** Injectable scan for tests. Defaults to the real {@link computeSpend}. */
+  computeSpendImpl?: (opts: { projectsDir?: string }) => Promise<SpendSnapshot>;
 }
 
 export interface ServeHandle {
@@ -66,11 +76,40 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
 
   const sseClients = new Set<http.ServerResponse>();
 
+  // ---- spend (corrected lifetime + today) ----
+  // Computed by scanning ~/.claude/projects, NEVER persisted to state.json.
+  // Cached in memory and refreshed on an interval; injected into every
+  // state payload so the web view can render it. A scan can take tens of
+  // seconds on large installs, so it runs in the background and the first
+  // few page loads simply omit the SPEND row until the cache warms.
+  const spendRefreshMs = opts.spendRefreshMs ?? 10 * 60_000;
+  const scanSpend = opts.computeSpendImpl ?? computeSpend;
+  let spendCache: SpendSnapshot | null = null;
+  let spendTimer: NodeJS.Timeout | null = null;
+  let spendInFlight = false;
+  const refreshSpend = async (): Promise<void> => {
+    if (spendInFlight) return;
+    spendInFlight = true;
+    try {
+      const snap = await scanSpend({});
+      spendCache = snap;
+      scheduleBroadcast();
+    } catch {
+      // a failed scan leaves the previous snapshot in place
+    } finally {
+      spendInFlight = false;
+    }
+  };
+  const injectSpend = (state: State): State => {
+    if (!spendCache) return state;
+    return { ...state, counters: { ...state.counters, spend: spendCache } };
+  };
+
   // ---- timestamp-based debounce / broadcast ----
   let debounceTimer: NodeJS.Timeout | null = null;
   const broadcast = async (): Promise<void> => {
     try {
-      const state = await readState();
+      const state = injectSpend(await readState());
       const data = `data: ${JSON.stringify(state)}\n\n`;
       for (const client of sseClients) {
         try {
@@ -135,6 +174,10 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
         res.writeHead(500);
         res.end("server error");
       });
+      return;
+    }
+    if (url.pathname === "/spend") {
+      handleSpend(res);
       return;
     }
     if (url.pathname === "/manifest.webmanifest" || url.pathname === "/manifest.json") {
@@ -208,6 +251,15 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
     pollInterval.unref?.();
   }
 
+  // ---- spend scan kickoff ----
+  // First scan runs in the background immediately; subsequent scans on an
+  // interval. unref'd so it never keeps the process alive on its own.
+  if (spendRefreshMs > 0) {
+    void refreshSpend();
+    spendTimer = setInterval(() => void refreshSpend(), spendRefreshMs);
+    spendTimer.unref?.();
+  }
+
   // ---- bind ----
   await new Promise<void>((resolve, reject) => {
     const onError = (err: Error): void => {
@@ -245,6 +297,10 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
         clearInterval(pollInterval);
         pollInterval = null;
       }
+      if (spendTimer) {
+        clearInterval(spendTimer);
+        spendTimer = null;
+      }
       if (watcher) {
         try {
           watcher.close();
@@ -268,7 +324,7 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
   async function handleRoot(res: http.ServerResponse): Promise<void> {
     let state: State | null = null;
     try {
-      state = await readState();
+      state = injectSpend(await readState());
     } catch {
       state = null;
     }
@@ -365,6 +421,20 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
     }
   }
 
+  /**
+   * Corrected lifetime + today spend, in cents. 503 until the first scan
+   * completes (warming). Mirrors `/claude-quota` as a dashboard surface.
+   */
+  function handleSpend(res: http.ServerResponse): void {
+    if (!spendCache) {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "spend not computed yet" }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(spendCache));
+  }
+
   async function handleStream(
     res: http.ServerResponse,
     clients: Set<http.ServerResponse>,
@@ -380,7 +450,7 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
 
     // Send the current state immediately if available.
     try {
-      const state = await readState();
+      const state = injectSpend(await readState());
       res.write(`data: ${JSON.stringify(state)}\n\n`);
     } catch {
       // none yet — client renders skeleton

@@ -60,6 +60,27 @@ function costFor(model: string, u: ModelUsage): CostBreakdown {
   };
 }
 
+/**
+ * Roll up a per-model usage map into a single cost breakdown. Used for both
+ * the lifetime total and the "today" bucket (which is just a smaller map).
+ */
+export function rollupCostByModel(byModel: Record<string, ModelUsage>): CostBreakdown {
+  const total = Object.entries(byModel).reduce(
+    (acc, [model, u]) => {
+      const c = costFor(model, u);
+      return {
+        paidCents: acc.paidCents + c.paidCents,
+        apiEquivCents: acc.apiEquivCents + c.apiEquivCents,
+        savedCents: acc.savedCents + c.savedCents,
+        multiplier: 0,
+      };
+    },
+    { paidCents: 0, apiEquivCents: 0, savedCents: 0, multiplier: 0 },
+  );
+  total.multiplier = total.paidCents > 0 ? total.apiEquivCents / total.paidCents : 0;
+  return total;
+}
+
 export function rollupCost(h: HistoricalTotals): HistoricalCostReport {
   const byModel: PerModelCost[] = Object.entries(h.byModel).map(([model, u]) => ({
     model,
@@ -67,15 +88,6 @@ export function rollupCost(h: HistoricalTotals): HistoricalCostReport {
     ...costFor(model, u),
   }));
   byModel.sort((a, b) => b.apiEquivCents - a.apiEquivCents);
-  const total: CostBreakdown = byModel.reduce(
-    (acc, m) => ({
-      paidCents: acc.paidCents + m.paidCents,
-      apiEquivCents: acc.apiEquivCents + m.apiEquivCents,
-      savedCents: acc.savedCents + m.savedCents,
-      multiplier: 0,
-    }),
-    { paidCents: 0, apiEquivCents: 0, savedCents: 0, multiplier: 0 },
-  );
-  total.multiplier = total.paidCents > 0 ? total.apiEquivCents / total.paidCents : 0;
+  const total = rollupCostByModel(h.byModel);
   return { total, byModel };
 }

@@ -1,6 +1,44 @@
 # Changelog
 
-## 3.7.6 - 2026-05-25
+## 3.7.7 - 2026-05-29
+
+### Features
+
+- **Web view SPEND row** - the Current Run card gains a third line showing
+  **corrected lifetime** spend (the true total from a full `~/.claude/projects`
+  JSONL scan, matching `petforge history` - not the partial OTel-since-collector
+  figure) and **real today** spend (cost of messages timestamped at/after local
+  midnight). Format: `Today $X.XX · Lifetime $Y.YY (API $Z)`.
+- **`GET /spend` endpoint** - JSON snapshot `{ lifetimeCents, lifetimeApiCents,
+  todayCents, todayApiCents, todayKey, ... }` for Home Assistant / dashboards.
+  503 until the first scan warms.
+
+### Internal
+
+- New `src/core/spend/` module (`schema.ts` + `compute.ts`). `computeSpend()`
+  reuses the history scanner with a new `todayStartMs` bucket and the new
+  `rollupCostByModel` helper. **Read-only**: the snapshot is computed in the
+  `serve` process and injected into the streamed state - it is NEVER persisted
+  to `state.json`, so the spend feature cannot touch the pet.
+- `serve` runs the scan in the background on startup and every 10 min
+  (`--spendRefreshMs`-tunable, 0 disables), caches the result, and injects it
+  into `/`, `/stream`, and the new `/spend`.
+- `SpendSnapshot` added to the state schema as an optional, render-only field.
+
+### Fixes
+
+- **Root cause of the recurring pet wipe, finally fixed.** `tests/core/quota/schema.test.ts`
+  ("quota state round-trip") wrote a fresh level-1 state directly to `STATE_FILE`
+  with **no `PETFORGE_HOME` isolation**. Under a normal `npm test` (and therefore
+  `prepublishOnly`), `STATE_FILE` resolved to the user's real
+  `~/.petforge/state.json` and the test overwrote the live pet with a freshly
+  generated creature - the wipe observed on 2026-05-20, -21, and -25. The test
+  now sets a temp `PETFORGE_HOME`, creates its `.petforge` dir, and re-imports
+  paths/state via `vi.resetModules` like every other state-touching test.
+  Verified: full suite (473 tests) runs without an isolation override and leaves
+  the real pet untouched.
+
+
 
 ### Features
 

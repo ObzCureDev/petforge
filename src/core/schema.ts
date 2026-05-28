@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { createInitialOtelCounters, type OtelCounters, OtelCountersSchema } from "./otel/schema.js";
 import { type QuotaState, QuotaStateSchema } from "./quota/schema.js";
+import { type SpendSnapshot, SpendSnapshotSchema } from "./spend/schema.js";
 
 // ---------- Enums ----------
 
@@ -211,6 +212,12 @@ export interface Counters {
   otel?: OtelCounters;
   /** V3.7 quota tracking (opt-in, additive). */
   quota?: QuotaState;
+  /**
+   * V3.7.7 corrected-lifetime + today spend. NEVER written to state.json by
+   * hooks — computed in-process by `petforge serve` and injected into the
+   * streamed state for the web view. Optional everywhere.
+   */
+  spend?: SpendSnapshot;
 }
 
 export interface Achievements {
@@ -298,6 +305,8 @@ export const CountersSchema = z.object({
   nightOwlEvents: z.number(),
   otel: OtelCountersSchema.optional(),
   quota: QuotaStateSchema.optional(),
+  // Render-only, injected by serve; never persisted by hooks.
+  spend: SpendSnapshotSchema.optional(),
 });
 
 export const AchievementsSchema = z.object({

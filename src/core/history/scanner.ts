@@ -45,6 +45,14 @@ export interface HistoricalTotals {
   byModel: Record<string, ModelUsage>;
   /** Per-project breakdown. */
   byProject: ProjectUsage[];
+  /**
+   * Usage from messages whose timestamp is >= `todayStartMs`, per model.
+   * Empty unless `todayStartMs` was passed to the scan. Lets callers price
+   * "today's" spend without a second pass over the JSONL.
+   */
+  todayByModel: Record<string, ModelUsage>;
+  /** Assistant messages counted into `todayByModel`. */
+  todayMessageCount: number;
   /** Epoch ms of the earliest assistant message anywhere. */
   oldestTs: number;
   /** Epoch ms of the latest. */
@@ -61,6 +69,13 @@ export interface ScanOptions {
   projectsDir?: string;
   /** Hard cap on JSONL files visited. Default 10 000. */
   maxFiles?: number;
+  /**
+   * Epoch ms marking the start of "today" (local midnight). When set, the
+   * scan also accumulates messages with `ts >= todayStartMs` into
+   * `totals.todayByModel`. Messages without a parseable timestamp never
+   * count toward today.
+   */
+  todayStartMs?: number;
 }
 
 const DEFAULT_MAX_FILES = 10_000;
@@ -76,11 +91,15 @@ export function defaultProjectsDir(): string {
 export async function scanAllJsonl(opts: ScanOptions = {}): Promise<HistoricalTotals> {
   const root = opts.projectsDir ?? defaultProjectsDir();
   const maxFiles = opts.maxFiles ?? DEFAULT_MAX_FILES;
+  // null disables the today bucket entirely (avoids any ts comparison).
+  const todayStartMs = opts.todayStartMs ?? null;
 
   const totals: HistoricalTotals = {
     total: emptyUsage(),
     byModel: {},
     byProject: [],
+    todayByModel: {},
+    todayMessageCount: 0,
     oldestTs: 0,
     newestTs: 0,
     filesScanned: 0,
@@ -132,7 +151,7 @@ export async function scanAllJsonl(opts: ScanOptions = {}): Promise<HistoricalTo
     for (const file of files) {
       if (totals.filesScanned >= maxFiles) break;
       totals.filesScanned++;
-      await accumulateFile(file, pu, totals, seenIds);
+      await accumulateFile(file, pu, totals, seenIds, todayStartMs);
     }
     if (pu.messageCount > 0) totals.byProject.push(pu);
     if (totals.filesScanned >= maxFiles) break;
@@ -147,6 +166,7 @@ async function accumulateFile(
   pu: ProjectUsage,
   totals: HistoricalTotals,
   seenIds: Set<string>,
+  todayStartMs: number | null,
 ): Promise<void> {
   const stream = createReadStream(filePath, { encoding: "utf8" });
   const rl = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
@@ -184,6 +204,15 @@ async function accumulateFile(
       pu.byModel[u.model] = projectBucket;
     }
     applyUsage(projectBucket, u);
+    if (todayStartMs !== null && u.ts >= todayStartMs) {
+      let todayBucket = totals.todayByModel[u.model];
+      if (!todayBucket) {
+        todayBucket = emptyUsage();
+        totals.todayByModel[u.model] = todayBucket;
+      }
+      applyUsage(todayBucket, u);
+      totals.todayMessageCount += 1;
+    }
     if (u.ts > 0) {
       if (totals.oldestTs === 0 || u.ts < totals.oldestTs) totals.oldestTs = u.ts;
       if (u.ts > totals.newestTs) totals.newestTs = u.ts;

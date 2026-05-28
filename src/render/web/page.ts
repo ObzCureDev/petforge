@@ -102,6 +102,7 @@ export function renderPage(state: State | null): string {
     <p class="card-label">Current Run</p>
     <p class="run-line"><span class="run-prefix">RUN</span><span id="activity" class="activity"></span></p>
     <p class="run-line" id="otel-row"><span class="run-prefix">DEV</span><span id="otel-activity" class="activity"></span></p>
+    <p class="run-line" id="spend-row" hidden><span class="run-prefix">SPEND</span><span id="spend-activity" class="activity"></span></p>
   </section>
   <section class="card stats-card">
     <p class="card-label">Stats</p>
@@ -1211,6 +1212,22 @@ const CLIENT_JS = `
       otelRow.hidden = false;
     } else {
       otelRow.hidden = true;
+    }
+
+    // V3.7.7 - corrected lifetime + real today spend, injected by serve from a
+    // full ~/.claude/projects JSONL scan (not the OTel-since-collector figure).
+    var sp = s.counters && s.counters.spend;
+    var spendRow = byId("spend-row");
+    var spendEl = byId("spend-activity");
+    if (sp && sp.lastScanTs > 0) {
+      var today = "$" + ((sp.todayCents || 0) / 100).toFixed(2);
+      var life = "$" + ((sp.lifetimeCents || 0) / 100).toFixed(2);
+      var lifeApi = "$" + ((sp.lifetimeApiCents || 0) / 100).toFixed(2);
+      spendEl.textContent =
+        "Today " + today + " · Lifetime " + life + " (API " + lifeApi + ")";
+      spendRow.hidden = false;
+    } else {
+      spendRow.hidden = true;
     }
     byId("status").textContent = "live";
   }

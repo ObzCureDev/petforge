@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createInitialQuota,
   type QuotaState,
@@ -58,14 +61,43 @@ describe("quota/schema", () => {
   });
 });
 
-import { promises as fs } from "node:fs";
-import { STATE_FILE } from "../../../src/core/paths.js";
-import { generatePet } from "../../../src/core/pet-engine.js";
-import { createInitialState } from "../../../src/core/schema.js";
-import { readState, withStateLock } from "../../../src/core/state.js";
-
 describe("quota state round-trip", () => {
+  // Isolation is MANDATORY here: this test writes to STATE_FILE. Without a
+  // temp PETFORGE_HOME, STATE_FILE resolves to the real ~/.petforge/state.json
+  // and the fs.writeFile below overwrites the user's actual pet with a fresh
+  // level-1 creature. That bug wiped a real pet repeatedly before this fix.
+  // We set PETFORGE_HOME to a temp dir, create the .petforge subdir, and
+  // re-import paths/state via vi.resetModules so STATE_FILE points at the temp.
+  let testHome: string;
+  let prevHome: string | undefined;
+
+  beforeEach(async () => {
+    prevHome = process.env.PETFORGE_HOME;
+    testHome = await fs.mkdtemp(path.join(os.tmpdir(), "petforge-quota-schema-"));
+    await fs.mkdir(path.join(testHome, ".petforge"), { recursive: true });
+    process.env.PETFORGE_HOME = testHome;
+    vi.resetModules();
+  });
+
+  afterEach(async () => {
+    if (prevHome === undefined) {
+      delete process.env.PETFORGE_HOME;
+    } else {
+      process.env.PETFORGE_HOME = prevHome;
+    }
+    try {
+      await fs.rm(testHome, { recursive: true, force: true });
+    } catch {
+      /* noop */
+    }
+  });
+
   it("legacy state without quota block parses and synthesizes one", async () => {
+    const { STATE_FILE } = await import("../../../src/core/paths.js");
+    const { generatePet } = await import("../../../src/core/pet-engine.js");
+    const { createInitialState } = await import("../../../src/core/schema.js");
+    const { readState, withStateLock } = await import("../../../src/core/state.js");
+
     const pet = generatePet({ username: "test", hostname: "ci" });
     const legacy = createInitialState(pet, 0);
     delete (legacy.counters as { quota?: unknown }).quota;
