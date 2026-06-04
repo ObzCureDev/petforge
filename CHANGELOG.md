@@ -1,5 +1,50 @@
 # Changelog
 
+## 3.7.8 - 2026-06-05
+
+### Features
+
+- **Additive lifetime spend (survives JSONL archival).** V3.7.7's "Lifetime"
+  figure was actually "lifetime visible in `~/.claude/projects` today" — it
+  shrinks every time Claude Code archives old conversation logs. V3.7.8 adds
+  `state.counters.spendPersisted`, written by the serve spend daemon on each
+  scan: the daemon takes the delta of messages strictly newer than the prior
+  watermark, adds it to the running totals, advances the watermark. Numbers
+  only ever grow. The web view's SPEND row now reads this as the headline
+  when present and falls back to the scan figure otherwise.
+- **`petforge spend [baseline <usd>] [--json]`** - new CLI surface.
+  `petforge spend` prints the current persisted breakdown (baseline +
+  accumulated + total + watermark). `petforge spend baseline <usd>
+  [--api=<usd>] [--messages=<N>]` sets a one-shot manual offset for spend
+  that occurred before V3.7.8 started tracking (or that Claude Code
+  archived before PetForge could see it). `--reset` zeroes the baseline.
+  All writes go through `withStateLock` + the wipe-killer.
+
+### Internal
+
+- New `SpendDelta` + `applySpendDelta` in `src/core/spend/compute.ts` — pure
+  function that handles bootstrap (no prior persisted state → seed from
+  the delta), heartbeat (zero-message delta → just bump `lastUpdatedTs`),
+  monotonic watermark (never rewind), and accumulator math.
+- New `computeSpendWithDelta(sinceTs, opts)` — one-pass scan that returns
+  both the render-only `SpendSnapshot` and the strictly-newer delta. The
+  serve daemon calls this instead of the V3.7.7 `computeSpend` and writes
+  the result to state via `withStateLock`.
+- Scanner gains an optional `sinceTs` bucket alongside the V3.7.7 `today`
+  bucket. Strict comparison (`ts > sinceTs`) so the watermark message is
+  never double-counted across consecutive scans.
+- New `PersistedSpend` interface + Zod schema in `src/core/spend/schema.ts`,
+  optionally attached to `Counters` and rendered by the web view.
+
+### Compatibility
+
+- No schema bump. `state.counters.spendPersisted` is additive; V3.7.x state
+  files migrate transparently (the field is optional and the daemon seeds
+  it on the first scan after upgrade).
+- Backwards compatible: a serve instance with `computeSpendImpl` injected but
+  no `computeSpendWithDeltaImpl` falls back to the V3.7.7 snapshot-only path
+  (used by older tests).
+
 ## 3.7.7 - 2026-05-29
 
 ### Features

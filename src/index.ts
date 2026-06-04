@@ -15,6 +15,7 @@ import { initCli } from "./commands/init.js";
 import { quotaCli } from "./commands/quota.js";
 import { serveCli } from "./commands/serve.js";
 import { serviceCli } from "./commands/service.js";
+import { spendCli } from "./commands/spend.js";
 import { upCli } from "./commands/up.js";
 import { watchCli } from "./commands/watch.js";
 
@@ -55,6 +56,8 @@ async function main(): Promise<number> {
     console.log("              (enable | disable | --json)");
     console.log("  history     Lifetime spend from ~/.claude/projects JSONL");
     console.log("              (--by-project | --json)");
+    console.log("  spend       Show / edit the persisted additive lifetime");
+    console.log("              (baseline <usd> [--api=<usd>] [--messages=<N>] [--reset])");
     console.log("  up          Start collect + serve in one process (recommended)");
     console.log(
       "              (--port=N --collect-port=N --lan --host=IP --token=XXX --forward=URL)",
@@ -100,6 +103,9 @@ async function main(): Promise<number> {
   }
   if (cmd === "history") {
     return await historyCli(args.slice(1));
+  }
+  if (cmd === "spend") {
+    return await spendCli(args.slice(1));
   }
   if (cmd === "up") {
     return await upCli(args.slice(1));

@@ -1214,15 +1214,30 @@ const CLIENT_JS = `
       otelRow.hidden = true;
     }
 
-    // V3.7.7 - corrected lifetime + real today spend, injected by serve from a
-    // full ~/.claude/projects JSONL scan (not the OTel-since-collector figure).
+    // V3.7.7/V3.7.8 - corrected lifetime + real today spend.
+    //   * spend is the most recent scan (today figure + a snapshot of what's
+    //     currently on disk - shrinks when Claude Code archives old JSONL).
+    //   * spendPersisted is the additive lifetime the serve daemon writes
+    //     into state after each scan: baseline + accumulated deltas. Survives
+    //     archival. When present, it's the headline; otherwise we fall back
+    //     to the scan figure.
     var sp = s.counters && s.counters.spend;
+    var ps = s.counters && s.counters.spendPersisted;
     var spendRow = byId("spend-row");
     var spendEl = byId("spend-activity");
     if (sp && sp.lastScanTs > 0) {
       var today = "$" + ((sp.todayCents || 0) / 100).toFixed(2);
-      var life = "$" + ((sp.lifetimeCents || 0) / 100).toFixed(2);
-      var lifeApi = "$" + ((sp.lifetimeApiCents || 0) / 100).toFixed(2);
+      var life;
+      var lifeApi;
+      if (ps) {
+        var totalCents = (ps.baselineCents || 0) + (ps.accumulatedCents || 0);
+        var totalApi = (ps.baselineApiCents || 0) + (ps.accumulatedApiCents || 0);
+        life = "$" + (totalCents / 100).toFixed(2);
+        lifeApi = "$" + (totalApi / 100).toFixed(2);
+      } else {
+        life = "$" + ((sp.lifetimeCents || 0) / 100).toFixed(2);
+        lifeApi = "$" + ((sp.lifetimeApiCents || 0) / 100).toFixed(2);
+      }
       spendEl.textContent =
         "Today " + today + " · Lifetime " + life + " (API " + lifeApi + ")";
       spendRow.hidden = false;

@@ -8,7 +8,12 @@
 import { z } from "zod";
 import { createInitialOtelCounters, type OtelCounters, OtelCountersSchema } from "./otel/schema.js";
 import { type QuotaState, QuotaStateSchema } from "./quota/schema.js";
-import { type SpendSnapshot, SpendSnapshotSchema } from "./spend/schema.js";
+import {
+  type PersistedSpend,
+  PersistedSpendSchema,
+  type SpendSnapshot,
+  SpendSnapshotSchema,
+} from "./spend/schema.js";
 
 // ---------- Enums ----------
 
@@ -218,6 +223,13 @@ export interface Counters {
    * streamed state for the web view. Optional everywhere.
    */
   spend?: SpendSnapshot;
+  /**
+   * V3.7.8 additive lifetime spend. WRITTEN to state by the serve spend
+   * daemon after each scan: takes the delta of messages newer than
+   * `lastSeenNewestTs`, adds to `accumulated*`, advances the watermark.
+   * Survives Claude Code's JSONL archival. Optional for V3.7.x state files.
+   */
+  spendPersisted?: PersistedSpend;
 }
 
 export interface Achievements {
@@ -307,6 +319,8 @@ export const CountersSchema = z.object({
   quota: QuotaStateSchema.optional(),
   // Render-only, injected by serve; never persisted by hooks.
   spend: SpendSnapshotSchema.optional(),
+  // V3.7.8 additive lifetime; written by serve spend daemon, additive only.
+  spendPersisted: PersistedSpendSchema.optional(),
 });
 
 export const AchievementsSchema = z.object({

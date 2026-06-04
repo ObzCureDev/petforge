@@ -187,6 +187,8 @@ function singleProjectCost(p: ProjectUsage): {
     byProject: [],
     todayByModel: {},
     todayMessageCount: 0,
+    sinceByModel: {},
+    sinceMessageCount: 0,
     oldestTs: p.oldestTs,
     newestTs: p.newestTs,
     filesScanned: 0,

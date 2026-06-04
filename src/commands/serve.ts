@@ -27,9 +27,14 @@ import http from "node:http";
 import os from "node:os";
 import { STATE_FILE } from "../core/paths.js";
 import type { State } from "../core/schema.js";
-import { computeSpend } from "../core/spend/compute.js";
+import {
+  applySpendDelta,
+  computeSpend,
+  computeSpendWithDelta,
+  type SpendDelta,
+} from "../core/spend/compute.js";
 import type { SpendSnapshot } from "../core/spend/schema.js";
-import { readState, StateCorruptError, StateNotFoundError } from "../core/state.js";
+import { readState, StateCorruptError, StateNotFoundError, withStateLock } from "../core/state.js";
 import {
   ICON_JPEG_BUFFER,
   ICON_JPEG_TYPE,
@@ -59,6 +64,17 @@ export interface ServeOptions {
   spendRefreshMs?: number;
   /** Injectable scan for tests. Defaults to the real {@link computeSpend}. */
   computeSpendImpl?: (opts: { projectsDir?: string }) => Promise<SpendSnapshot>;
+  /**
+   * V3.7.8 - injectable delta scan for tests. When provided, the daemon
+   * uses this in place of {@link computeSpendWithDelta} so it can both
+   * populate the snapshot cache and integrate the delta into
+   * `state.counters.spendPersisted` via `withStateLock`. Defaults to the
+   * real implementation.
+   */
+  computeSpendWithDeltaImpl?: (
+    sinceTs: number,
+    opts: { projectsDir?: string },
+  ) => Promise<{ snapshot: SpendSnapshot; delta: SpendDelta }>;
 }
 
 export interface ServeHandle {
@@ -83,7 +99,11 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
   // seconds on large installs, so it runs in the background and the first
   // few page loads simply omit the SPEND row until the cache warms.
   const spendRefreshMs = opts.spendRefreshMs ?? 10 * 60_000;
+  // Two impls so tests can stub either side independently. The "delta"
+  // variant is preferred; we only fall back to plain `computeSpend` when a
+  // legacy test injects only `computeSpendImpl`.
   const scanSpend = opts.computeSpendImpl ?? computeSpend;
+  const scanSpendWithDelta = opts.computeSpendWithDeltaImpl ?? computeSpendWithDelta;
   let spendCache: SpendSnapshot | null = null;
   let spendTimer: NodeJS.Timeout | null = null;
   let spendInFlight = false;
@@ -91,11 +111,43 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
     if (spendInFlight) return;
     spendInFlight = true;
     try {
-      const snap = await scanSpend({});
-      spendCache = snap;
+      if (opts.computeSpendImpl && !opts.computeSpendWithDeltaImpl) {
+        // Legacy test path: no delta integration, just refresh the snapshot.
+        spendCache = await scanSpend({});
+        scheduleBroadcast();
+        return;
+      }
+      // Read the prior watermark first so we only count strictly-new messages.
+      // We tolerate a missing state.json (first install): sinceTs stays 0,
+      // which makes the first scan seed accumulated with the full lifetime.
+      let sinceTs = 0;
+      try {
+        const cur = await readState();
+        sinceTs = cur.counters.spendPersisted?.lastSeenNewestTs ?? 0;
+      } catch {
+        // no state yet — bootstrap path
+      }
+      const { snapshot, delta } = await scanSpendWithDelta(sinceTs, {});
+      spendCache = snapshot;
+      // Integrate the delta. The wipe-killer at writeStateAtomic protects
+      // the pet; this write only touches counters.spendPersisted.
+      try {
+        await withStateLock(async (s) => {
+          const prev = s.counters.spendPersisted;
+          s.counters.spendPersisted = applySpendDelta(
+            prev,
+            delta,
+            snapshot.newestTs,
+            snapshot.lastScanTs,
+          );
+        });
+      } catch {
+        // No state yet, or a transient lock failure. The next tick will retry;
+        // the snapshot cache is still updated so the web view stays fresh.
+      }
       scheduleBroadcast();
     } catch {
-      // a failed scan leaves the previous snapshot in place
+      // a failed scan leaves the previous snapshot + persisted state in place
     } finally {
       spendInFlight = false;
     }

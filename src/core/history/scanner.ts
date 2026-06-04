@@ -53,6 +53,15 @@ export interface HistoricalTotals {
   todayByModel: Record<string, ModelUsage>;
   /** Assistant messages counted into `todayByModel`. */
   todayMessageCount: number;
+  /**
+   * V3.7.8 - usage from messages strictly newer than `sinceTs`, per model.
+   * Empty unless `sinceTs` was passed. The persisted-lifetime daemon uses
+   * this to compute the delta since the previous scan's `newestTs` so the
+   * lifetime total grows monotonically across JSONL archival.
+   */
+  sinceByModel: Record<string, ModelUsage>;
+  /** Assistant messages counted into `sinceByModel`. */
+  sinceMessageCount: number;
   /** Epoch ms of the earliest assistant message anywhere. */
   oldestTs: number;
   /** Epoch ms of the latest. */
@@ -76,6 +85,13 @@ export interface ScanOptions {
    * count toward today.
    */
   todayStartMs?: number;
+  /**
+   * V3.7.8 - epoch ms. Messages with `ts > sinceTs` (strictly) are also
+   * accumulated into `totals.sinceByModel`. Used by the additive-lifetime
+   * daemon to extract the new-messages-only delta versus the previous scan.
+   * Messages without a parseable timestamp never count toward the bucket.
+   */
+  sinceTs?: number;
 }
 
 const DEFAULT_MAX_FILES = 10_000;
@@ -93,6 +109,9 @@ export async function scanAllJsonl(opts: ScanOptions = {}): Promise<HistoricalTo
   const maxFiles = opts.maxFiles ?? DEFAULT_MAX_FILES;
   // null disables the today bucket entirely (avoids any ts comparison).
   const todayStartMs = opts.todayStartMs ?? null;
+  // null disables the sinceTs bucket. 0 would mean "include everything",
+  // which the daemon uses on its very first scan (no prior persisted state).
+  const sinceTs = opts.sinceTs ?? null;
 
   const totals: HistoricalTotals = {
     total: emptyUsage(),
@@ -100,6 +119,8 @@ export async function scanAllJsonl(opts: ScanOptions = {}): Promise<HistoricalTo
     byProject: [],
     todayByModel: {},
     todayMessageCount: 0,
+    sinceByModel: {},
+    sinceMessageCount: 0,
     oldestTs: 0,
     newestTs: 0,
     filesScanned: 0,
@@ -151,7 +172,7 @@ export async function scanAllJsonl(opts: ScanOptions = {}): Promise<HistoricalTo
     for (const file of files) {
       if (totals.filesScanned >= maxFiles) break;
       totals.filesScanned++;
-      await accumulateFile(file, pu, totals, seenIds, todayStartMs);
+      await accumulateFile(file, pu, totals, seenIds, todayStartMs, sinceTs);
     }
     if (pu.messageCount > 0) totals.byProject.push(pu);
     if (totals.filesScanned >= maxFiles) break;
@@ -167,6 +188,7 @@ async function accumulateFile(
   totals: HistoricalTotals,
   seenIds: Set<string>,
   todayStartMs: number | null,
+  sinceTs: number | null,
 ): Promise<void> {
   const stream = createReadStream(filePath, { encoding: "utf8" });
   const rl = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
@@ -212,6 +234,15 @@ async function accumulateFile(
       }
       applyUsage(todayBucket, u);
       totals.todayMessageCount += 1;
+    }
+    if (sinceTs !== null && u.ts > sinceTs) {
+      let sinceBucket = totals.sinceByModel[u.model];
+      if (!sinceBucket) {
+        sinceBucket = emptyUsage();
+        totals.sinceByModel[u.model] = sinceBucket;
+      }
+      applyUsage(sinceBucket, u);
+      totals.sinceMessageCount += 1;
     }
     if (u.ts > 0) {
       if (totals.oldestTs === 0 || u.ts < totals.oldestTs) totals.oldestTs = u.ts;
