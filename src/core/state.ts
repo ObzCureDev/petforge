@@ -29,7 +29,7 @@ import path from "node:path";
 import lockfile from "proper-lockfile";
 import { migrateV1ToV2, type V1State } from "./migrations/v1-to-v2.js";
 import { migrateV31Achievements } from "./migrations/v32-achievement-rename.js";
-import { HOOK_ERROR_LOG, LOCK_FILE, PETFORGE_DIR, STATE_FILE } from "./paths.js";
+import { getHookErrorLog, getLockFile, getPetforgeDir, getStateFile } from "./paths.js";
 import { generatePet } from "./pet-engine.js";
 import { createInitialQuota } from "./quota/schema.js";
 import { createInitialState, type Pet, type State, StateSchema } from "./schema.js";
@@ -115,7 +115,7 @@ async function renameWithRetry(from: string, to: string): Promise<void> {
 // ---------- Public API ----------
 
 export async function ensurePetforgeDir(): Promise<void> {
-  await fs.mkdir(PETFORGE_DIR, { recursive: true });
+  await fs.mkdir(getPetforgeDir(), { recursive: true });
 }
 
 /**
@@ -126,7 +126,7 @@ export async function ensurePetforgeDir(): Promise<void> {
 export async function readState(): Promise<State> {
   let raw: string;
   try {
-    raw = await fs.readFile(STATE_FILE, "utf8");
+    raw = await fs.readFile(getStateFile(), "utf8");
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code === "ENOENT") {
@@ -245,7 +245,8 @@ export async function writeStateAtomic(state: State): Promise<void> {
   // restore from after a wipe.
   await opportunisticDailyBackup();
 
-  const tmp = `${STATE_FILE}.tmp`;
+  const stateFile = getStateFile();
+  const tmp = `${stateFile}.tmp`;
   const data = JSON.stringify(state, null, 2);
   const fd = await fs.open(tmp, "w");
   try {
@@ -254,7 +255,7 @@ export async function writeStateAtomic(state: State): Promise<void> {
   } finally {
     await fd.close();
   }
-  await renameWithRetry(tmp, STATE_FILE);
+  await renameWithRetry(tmp, stateFile);
 }
 
 /**
@@ -278,7 +279,7 @@ function looksLikeFreshState(s: State): boolean {
 
 async function tryReadStateRaw(): Promise<State | null> {
   try {
-    const raw = await fs.readFile(STATE_FILE, "utf8");
+    const raw = await fs.readFile(getStateFile(), "utf8");
     const parsed = JSON.parse(raw) as State;
     if (typeof parsed !== "object" || parsed === null) return null;
     if (!parsed.progress || !parsed.counters) return null;
@@ -291,7 +292,7 @@ async function tryReadStateRaw(): Promise<State | null> {
 async function logWipeAttempt(incoming: State, existing: State, trace: string): Promise<void> {
   try {
     await ensurePetforgeDir();
-    const logFile = path.join(PETFORGE_DIR, "wipe-investigation.log");
+    const logFile = path.join(getPetforgeDir(), "wipe-investigation.log");
     const ts = new Date().toISOString();
     const summary =
       `${ts} WIPE KILLER fired\n` +
@@ -314,10 +315,11 @@ async function logWipeAttempt(incoming: State, existing: State, trace: string): 
 async function opportunisticDailyBackup(): Promise<void> {
   try {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const backupPath = path.join(PETFORGE_DIR, `state.json.bak-daily-${today}`);
+    const stateFile = getStateFile();
+    const backupPath = path.join(getPetforgeDir(), `state.json.bak-daily-${today}`);
     if (await fileExists(backupPath)) return; // already done today
-    if (!(await fileExists(STATE_FILE))) return; // nothing to back up
-    await fs.copyFile(STATE_FILE, backupPath);
+    if (!(await fileExists(stateFile))) return; // nothing to back up
+    await fs.copyFile(stateFile, backupPath);
   } catch {
     // Best-effort - a failed backup must never block the actual write.
     // We deliberately don't logHookError here either to keep this path
@@ -356,9 +358,14 @@ async function opportunisticDailyBackup(): Promise<void> {
  * otherwise see "state missing" and regenerate a fresh pet on top of
  * the user's progress.
  */
-const INITIALIZED_MARKER = path.join(PETFORGE_DIR, ".initialized");
+function initializedMarker(): string {
+  return path.join(getPetforgeDir(), ".initialized");
+}
 
 export async function recoverCorruptState(petGenerator: () => Pet): Promise<State> {
+  const STATE_FILE = getStateFile();
+  const PETFORGE_DIR = getPetforgeDir();
+  const INITIALIZED_MARKER = initializedMarker();
   if (await fileExists(STATE_FILE)) {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const suffix = crypto.randomBytes(3).toString("hex");
@@ -468,6 +475,8 @@ export async function withStateLock<T>(
 ): Promise<T> {
   await ensurePetforgeDir();
 
+  const LOCK_FILE = getLockFile();
+
   // proper-lockfile derives `<target>.lock` from the target path, so we
   // need a stable, always-existing target. Touch the dedicated lock file
   // (no-op if already present) before acquiring.
@@ -541,7 +550,7 @@ export async function logHookError(message: string, err?: unknown): Promise<void
     const ts = new Date().toISOString();
     const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err ?? "");
     const line = `${ts} ${message}${detail ? ` — ${detail}` : ""}\n`;
-    await fs.appendFile(HOOK_ERROR_LOG, line, "utf8");
+    await fs.appendFile(getHookErrorLog(), line, "utf8");
   } catch {
     // swallow — hooks must not crash
   }

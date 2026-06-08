@@ -25,7 +25,7 @@
 import { promises as fs, watch as fsWatch } from "node:fs";
 import http from "node:http";
 import os from "node:os";
-import { STATE_FILE } from "../core/paths.js";
+import { getStateFile } from "../core/paths.js";
 import type { State } from "../core/schema.js";
 import {
   applySpendDelta,
@@ -275,7 +275,7 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
 
   const attachWatcher = (): void => {
     try {
-      watcher = fsWatch(STATE_FILE, { persistent: false }, () => {
+      watcher = fsWatch(getStateFile(), { persistent: false }, () => {
         scheduleBroadcast();
       });
     } catch {
@@ -284,12 +284,12 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
   };
 
   try {
-    await fs.access(STATE_FILE);
+    await fs.access(getStateFile());
     attachWatcher();
   } catch {
     pollInterval = setInterval(async () => {
       try {
-        await fs.access(STATE_FILE);
+        await fs.access(getStateFile());
         if (pollInterval) {
           clearInterval(pollInterval);
           pollInterval = null;

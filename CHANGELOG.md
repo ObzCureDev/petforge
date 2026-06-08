@@ -1,5 +1,42 @@
 # Changelog
 
+## 3.7.9 - 2026-06-08
+
+### Fixes
+
+- **Test isolation: the suite can no longer wipe your real pet.** Root cause of
+  the recurring `state.corrupt` / 0-byte `state.json` incidents (the
+  `WIPED-by-tests` / `WIPED-overnight` backups): `src/core/paths.ts` resolved
+  `~/.petforge` and `~/.claude` into **module-load-time consts**. Isolation
+  relied on every test setting `PETFORGE_HOME` *and* calling `vi.resetModules()`
+  + re-importing before any transitive import captured the real home. A single
+  test (or dev command) that imported a path consumer before isolating wrote
+  to — and truncated — the real `~/.petforge/state.json`.
+
+### Internal
+
+- `src/core/paths.ts` now exposes **call-time getters** (`getHomeDir`,
+  `getPetforgeDir`, `getStateFile`, `getLockFile`, `getHookErrorLog`,
+  `getClaudeDir`, `getClaudeSettingsFile`). They re-read `PETFORGE_HOME` on
+  every call, so resolution no longer depends on import order or
+  `vi.resetModules()`. All production consumers (`state.ts`, `doctor.ts`,
+  `serve.ts`, `init.ts`, `claude-config.ts`) migrated to the getters;
+  `state.ts`'s `INITIALIZED_MARKER` const is now `initializedMarker()`.
+- New `assertIsolatedHome(petforgeHome, realHome, underTest)` guard (pure,
+  unit-tested): under test, an unset `PETFORGE_HOME` — or one resolving to the
+  real home — **throws** instead of silently resolving the real `~/.petforge`.
+  Fail-loud beats silent wipe.
+- New global `tests/setup/isolation.ts` (`setupFiles`) forces `PETFORGE_HOME`
+  to a fresh `os.tmpdir()` dir before any module loads, so even a test that
+  forgets to isolate gets a safe, non-real default.
+
+### Compatibility
+
+- The eager `HOME_DIR` / `PETFORGE_DIR` / `STATE_FILE` / `LOCK_FILE` /
+  `HOOK_ERROR_LOG` / `CLAUDE_DIR` / `CLAUDE_SETTINGS_FILE` consts are retained
+  (resolved leniently at load) so existing imports keep working. Prefer the
+  getters in new code.
+
 ## 3.7.8 - 2026-06-05
 
 ### Features

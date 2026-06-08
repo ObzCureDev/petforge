@@ -9,7 +9,7 @@
 
 import { stdin as input, stdout as output } from "node:process";
 import readline from "node:readline/promises";
-import { CLAUDE_SETTINGS_FILE } from "../core/paths.js";
+import { getClaudeSettingsFile } from "../core/paths.js";
 import {
   applyOtelEnv,
   buildPetforgeHookConfig,
@@ -62,7 +62,7 @@ async function confirm(question: string): Promise<boolean> {
 }
 
 export async function runInit(opts: InitOptions = {}): Promise<InitResult> {
-  const filePath = opts.settingsPath ?? CLAUDE_SETTINGS_FILE;
+  const filePath = opts.settingsPath ?? getClaudeSettingsFile();
 
   let settings: ClaudeSettings | null;
   try {

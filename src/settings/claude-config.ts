@@ -7,7 +7,7 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { CLAUDE_SETTINGS_FILE } from "../core/paths.js";
+import { getClaudeSettingsFile } from "../core/paths.js";
 
 // Hook event groups Claude Code recognizes.
 const PETFORGE_HOOK_GROUPS = [
@@ -63,7 +63,7 @@ export class ClaudeSettingsInvalidJsonError extends Error {
  * Throws ClaudeSettingsInvalidJsonError if it exists but is malformed.
  */
 export async function readClaudeSettings(
-  filePath: string = CLAUDE_SETTINGS_FILE,
+  filePath: string = getClaudeSettingsFile(),
 ): Promise<ClaudeSettings | null> {
   let raw: string;
   try {
@@ -259,7 +259,7 @@ export function stripOtelEnv(settings: ClaudeSettings | null): ClaudeSettings {
  */
 export async function writeClaudeSettingsWithBackup(
   settings: ClaudeSettings,
-  filePath: string = CLAUDE_SETTINGS_FILE,
+  filePath: string = getClaudeSettingsFile(),
 ): Promise<string | null> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 

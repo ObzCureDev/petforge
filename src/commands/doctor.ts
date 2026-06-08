@@ -8,7 +8,7 @@
 
 import { promises as fs } from "node:fs";
 import { detectBuddy, isClaudeOnPath } from "../core/buddy.js";
-import { CLAUDE_SETTINGS_FILE, STATE_FILE } from "../core/paths.js";
+import { getClaudeSettingsFile, getStateFile } from "../core/paths.js";
 import { resolveOAuthToken } from "../core/quota/credentials.js";
 import { readState, StateCorruptError, StateNotFoundError } from "../core/state.js";
 import {
@@ -301,7 +301,7 @@ async function checkRecentOtelIngest(): Promise<CheckResult> {
 
 async function checkStateFile(): Promise<CheckResult> {
   try {
-    await fs.access(STATE_FILE);
+    await fs.access(getStateFile());
   } catch {
     // First run is OK — state is auto-created on first hook fire.
     return {
@@ -354,7 +354,7 @@ async function checkClaudeSettings(): Promise<CheckResult> {
       return {
         name: "~/.claude/settings.json valid JSON",
         ok: false,
-        detail: `invalid JSON at ${CLAUDE_SETTINGS_FILE} — fix manually`,
+        detail: `invalid JSON at ${getClaudeSettingsFile()} — fix manually`,
       };
     }
     return {
