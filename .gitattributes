@@ -1,0 +1,12 @@
+# Enforce LF line endings in the repo AND on checkout. Without this, Git's
+# core.autocrlf=true (the Windows default) smudges text files to CRLF on
+# checkout, which makes `biome check` (LF) fail — breaking `npm run check`
+# and therefore `prepublishOnly`/`npm publish`. eol=lf overrides autocrlf.
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary
