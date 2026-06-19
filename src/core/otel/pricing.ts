@@ -18,8 +18,9 @@
  * sanity-check on subscription value vs API direct.
  *
  * Pricing is sourced from Anthropic's public pricing page (2026-Q2
- * snapshot, USD per million tokens). The 1M-context Opus variants
- * carry a 2x premium per Anthropic's long-context tier.
+ * snapshot, USD per million tokens). The current Opus generation
+ * (4.5–4.8) bills its 1M-context window at the standard rate — there
+ * is no long-context premium (the old [1m] 2x tier is retired).
  */
 
 import type { OtelCounters } from "./schema.js";
@@ -36,24 +37,25 @@ export interface ModelPricing {
  * adjusts public rates. Keys match what arrives via OTel `gen_ai.request.model`.
  */
 export const MODEL_PRICING_USD_PER_MTOK: Record<string, ModelPricing> = {
-  // Opus 4.x family
-  "claude-opus-4-7": { input: 15, output: 75 },
-  "claude-opus-4-6": { input: 15, output: 75 },
-  "claude-opus-4-5": { input: 15, output: 75 },
-  // 1M-context Opus variants - 2x premium per Anthropic tier
-  "claude-opus-4-7[1m]": { input: 30, output: 150 },
-  "claude-opus-4-6[1m]": { input: 30, output: 150 },
+  // Current Opus generation (4.5–4.8): $5 / $25 per MTok. The 1M-context
+  // window is billed at this standard rate — no long-context premium.
+  "claude-opus-4-8": { input: 5, output: 25 },
+  "claude-opus-4-7": { input: 5, output: 25 },
+  "claude-opus-4-6": { input: 5, output: 25 },
+  "claude-opus-4-5": { input: 5, output: 25 },
+  // Legacy Opus (4.0 / 4.1): still $15 / $75.
+  "claude-opus-4-1": { input: 15, output: 75 },
+  "claude-opus-4-20250514": { input: 15, output: 75 },
   // Sonnet 4.x
-  "claude-sonnet-4-7": { input: 3, output: 15 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
-  // Haiku 4.x
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
-  "claude-haiku-4-5": { input: 0.8, output: 4 },
+  // Haiku 4.5
+  "claude-haiku-4-5-20251001": { input: 1, output: 5 },
+  "claude-haiku-4-5": { input: 1, output: 5 },
 };
 
-/** Fallback when an unknown model arrives - assume Opus (overcounts safely). */
-const UNKNOWN_MODEL_PRICING: ModelPricing = { input: 15, output: 75 };
+/** Fallback when an unknown model arrives - assume the current Opus rate. */
+const UNKNOWN_MODEL_PRICING: ModelPricing = { input: 5, output: 25 };
 
 export function pricingFor(modelName: string): ModelPricing {
   return MODEL_PRICING_USD_PER_MTOK[modelName] ?? UNKNOWN_MODEL_PRICING;

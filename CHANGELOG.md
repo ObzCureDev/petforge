@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.7.10 - 2026-06-19
+
+### Fixes
+
+- **Pricing: corrected the Opus 4.5–4.8 token rates (were 3× too high).** The
+  pricing table priced the entire current Opus generation at the legacy
+  $15/$75 per-MTok rate, and `claude-opus-4-8` was missing entirely — so it
+  fell through to the `$15/$75` "unknown model" fallback. The real rate is
+  **$5 / $25** per MTok (the 1M-context window bills at the standard rate; the
+  old `[1m]` 2× tier is retired). Haiku 4.5 corrected to `$1 / $5`. This had
+  inflated every Opus-derived spend figure — the `SPEND` web row,
+  `petforge history`, and the OTel API-equivalent cost — by ~3×.
+- Fixed the same stale table in the web client's inlined pricing
+  (`src/render/web/page.ts`), which drives the `(API $…)` figure on the DEV row.
+
+### Notes
+
+- The additive persisted lifetime (`counters.spendPersisted`) keeps the cents
+  it accumulated under the old rates; only `today` and future scans reflect the
+  correction. Reset the baseline / re-scan if you want the lifetime re-priced.
+
 ## 3.7.9 - 2026-06-08
 
 ### Fixes

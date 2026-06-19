@@ -32,7 +32,7 @@ async function write(file: string, rows: object[]): Promise<void> {
 function msg(ts: number, id: string, usage: object): object {
   return {
     timestamp: new Date(ts).toISOString(),
-    message: { id, model: "claude-opus-4-7", usage },
+    message: { id, model: "claude-opus-4-1", usage },
   };
 }
 
@@ -51,7 +51,7 @@ describe("localMidnightMs / localDateKey", () => {
 });
 
 describe("computeSpend", () => {
-  // opus 4.7 = $15/MTok in, $75/MTok out. Cache read = 10% input, creation = 125%.
+  // opus 4.1 (legacy) = $15/MTok in, $75/MTok out. Cache read = 10% input, creation = 125%.
   const now = new Date("2026-05-29T15:00:00Z").getTime();
   const lastWeek = now - 7 * 86_400_000;
 

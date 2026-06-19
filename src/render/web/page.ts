@@ -632,18 +632,18 @@ const CLIENT_JS = `
   // V3.7.4 - inlined pricing for the web client. Kept in sync with
   // src/core/otel/pricing.ts. USD per million tokens.
   var MODEL_PRICING = {
-    "claude-opus-4-7": { input: 15, output: 75 },
-    "claude-opus-4-6": { input: 15, output: 75 },
-    "claude-opus-4-5": { input: 15, output: 75 },
-    "claude-opus-4-7[1m]": { input: 30, output: 150 },
-    "claude-opus-4-6[1m]": { input: 30, output: 150 },
-    "claude-sonnet-4-7": { input: 3, output: 15 },
+    "claude-opus-4-8": { input: 5, output: 25 },
+    "claude-opus-4-7": { input: 5, output: 25 },
+    "claude-opus-4-6": { input: 5, output: 25 },
+    "claude-opus-4-5": { input: 5, output: 25 },
+    "claude-opus-4-1": { input: 15, output: 75 },
+    "claude-opus-4-20250514": { input: 15, output: 75 },
     "claude-sonnet-4-6": { input: 3, output: 15 },
     "claude-sonnet-4-5": { input: 3, output: 15 },
-    "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
-    "claude-haiku-4-5": { input: 0.8, output: 4 },
+    "claude-haiku-4-5-20251001": { input: 1, output: 5 },
+    "claude-haiku-4-5": { input: 1, output: 5 },
   };
-  var FALLBACK_PRICING = { input: 15, output: 75 };
+  var FALLBACK_PRICING = { input: 5, output: 25 };
 
   function pricingFor(model) {
     return MODEL_PRICING[model] || FALLBACK_PRICING;
