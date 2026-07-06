@@ -451,6 +451,22 @@ export async function recoverCorruptState(petGenerator: () => Pet): Promise<Stat
   return fresh;
 }
 
+/**
+ * `onCompromised` handler for the state lock (see the detailed rationale
+ * comment at the `lockfile.lock(...)` call site inside `withStateLock`).
+ *
+ * Contract: MUST NOT throw or reject — proper-lockfile invokes this from its
+ * own internal setInterval, well outside any try/catch we could wrap around
+ * `lock()` or the critical section, so a throw here is an uncaught exception
+ * that kills the whole host process. `logHookError` is async but swallows
+ * every error it can hit internally, so its returned promise never rejects
+ * either — calling it without awaiting (`void`) is safe and cannot produce
+ * an unhandled rejection.
+ */
+export function onStateLockCompromised(err: Error): void {
+  void logHookError("state lock compromised — continuing without exclusive lock", err);
+}
+
 export interface WithStateLockOptions {
   /**
    * Called when state.json is missing or corrupt to materialise a fresh State.
@@ -494,6 +510,47 @@ export async function withStateLock<T>(
     realpath: false,
     stale: 5000,
     retries: { retries: 20, factor: 1.2, minTimeout: 20, maxTimeout: 200 },
+    // V3.7.11 — never let a compromised lock kill the long-running daemon.
+    //
+    // proper-lockfile refreshes the lock file's mtime on an internal
+    // setInterval (period = stale/2) to prove liveness to any other
+    // process racing for the same lock. ECOMPROMISED fires when a refresh
+    // can't land inside the `stale` window above (5 s) — e.g. the OS
+    // suspended this process (laptop sleep/resume) long enough that the
+    // refresh timer starved, or another process (the very short-lived
+    // per-hook `petforge` invocation) judged this lock stale and stole it
+    // while `up`'s daemon was still legitimately holding it.
+    //
+    // proper-lockfile's DEFAULT `onCompromised` is `(err) => { throw err;
+    // }`, and that throw fires from INSIDE its own setInterval callback —
+    // i.e. it is an uncaught exception on a tick of the event loop that is
+    // completely outside any try/catch we could wrap around `lock()` or the
+    // mutator below. For a one-shot CLI invocation that is merely
+    // annoying (the process was about to exit anyway); for `petforge up`
+    // (which hosts the OTel collector + web server + quota probe daemon in
+    // one long-running process) it is FATAL — the entire host process
+    // dies, every subsystem it hosts dies with it, and quota tracking
+    // silently stops until the user notices and restarts. This is exactly
+    // the crash pattern seen in production err.log: `[Error: ENOENT: ...
+    // stat '...\.petforge\.lock.lock'] { code: 'ECOMPROMISED' }` /
+    // "Unable to update lock within the stale threshold".
+    //
+    // The trade-off we accept by swallowing instead of throwing: after a
+    // compromise, the CURRENT critical section (whatever `mutator` does
+    // before `writeStateAtomic` below) may finish without a
+    // provably-exclusive lock, so in the rare case where another process
+    // also holds/steals the lock at the same instant, writes could
+    // interleave. That is acceptable because the real data-integrity
+    // backstop is not this lock — it is `writeStateAtomic`'s tmp-write +
+    // fsync + rename (never a partially-written state.json on disk) plus
+    // its WIPE-KILLER guard (refuses to overwrite a populated pet with an
+    // empty/zeroed one). Worst case under a genuine double-write is
+    // "last writer wins" on an otherwise structurally-valid state.json —
+    // recoverable, and far cheaper than crashing the daemon and losing
+    // quota tracking outright. Do NOT "fix" this by touching
+    // `stale`/`retries`/`realpath` — the actual fix is narrowly "never let
+    // onCompromised crash the process."
+    onCompromised: onStateLockCompromised,
   });
 
   try {

@@ -57,4 +57,105 @@ describe("quota/jsonl-gate", () => {
     const result = await shouldProbe({ projectsDir: p, now: Date.now(), gateMs: 60_000 });
     expect(result).toBe(true);
   });
+
+  it("returns true for a fresh file even when stale files exceed the old 2000-visit cap " +
+    "(regression: large-install false negative, see file header)", async () => {
+    const p = path.join(tmp, "projects");
+    const now = Date.now();
+    const staleTimeSec = (now - 60 * 60_000) / 1000; // 1h old, well before the gate cutoff
+
+    const STALE_DIR_COUNT = 5;
+    const STALE_FILES_PER_DIR = 500; // 2500 total .jsonl - exceeds the old MAX_FILES_VISITED (2000)
+
+    for (let d = 0; d < STALE_DIR_COUNT; d++) {
+      const dir = path.join(p, `stale-${d}`);
+      await fs.mkdir(dir, { recursive: true });
+      await Promise.all(
+        Array.from({ length: STALE_FILES_PER_DIR }, (_, i) =>
+          fs.writeFile(path.join(dir, `conv-${i}.jsonl`), "", "utf8"),
+        ),
+      );
+      // Backdate the directory's own mtime so best-first ordering ranks it
+      // below the still-fresh active project directory created afterwards.
+      await fs.utimes(dir, staleTimeSec, staleTimeSec);
+    }
+    for (let d = 0; d < STALE_DIR_COUNT; d++) {
+      const dir = path.join(p, `stale-${d}`);
+      await Promise.all(
+        Array.from({ length: STALE_FILES_PER_DIR }, (_, i) =>
+          fs.utimes(path.join(dir, `conv-${i}.jsonl`), staleTimeSec, staleTimeSec),
+        ),
+      );
+    }
+
+    // A single fresh file, in its own directory created last (newest mtime).
+    const freshDir = path.join(p, "active-project");
+    await fs.mkdir(freshDir, { recursive: true });
+    await fs.writeFile(path.join(freshDir, "conv-fresh.jsonl"), "", "utf8");
+
+    const result = await shouldProbe({ projectsDir: p, now, gateMs: 60_000 });
+    expect(result).toBe(true);
+  }, 20_000);
+
+  it("returns false at scale when ALL files are stale (frontier drains to empty by exhaustion, not budget)", async () => {
+    const p = path.join(tmp, "projects");
+    const now = Date.now();
+    const staleTimeSec = (now - 60 * 60_000) / 1000; // 1h old, well before the gate cutoff
+
+    const STALE_DIR_COUNT = 5;
+    const STALE_FILES_PER_DIR = 500; // 2500 total .jsonl - exceeds the old MAX_FILES_VISITED (2000)
+
+    for (let d = 0; d < STALE_DIR_COUNT; d++) {
+      const dir = path.join(p, `stale-${d}`);
+      await fs.mkdir(dir, { recursive: true });
+      await Promise.all(
+        Array.from({ length: STALE_FILES_PER_DIR }, (_, i) =>
+          fs.writeFile(path.join(dir, `conv-${i}.jsonl`), "", "utf8"),
+        ),
+      );
+      await fs.utimes(dir, staleTimeSec, staleTimeSec);
+    }
+    for (let d = 0; d < STALE_DIR_COUNT; d++) {
+      const dir = path.join(p, `stale-${d}`);
+      await Promise.all(
+        Array.from({ length: STALE_FILES_PER_DIR }, (_, i) =>
+          fs.utimes(path.join(dir, `conv-${i}.jsonl`), staleTimeSec, staleTimeSec),
+        ),
+      );
+    }
+
+    // No fresh file anywhere: a generous budget guarantees the false result
+    // comes from the frontier fully draining, not from a budget cutoff.
+    const result = await shouldProbe({
+      projectsDir: p,
+      now,
+      gateMs: 60_000,
+      scanBudgetMs: 60_000,
+    });
+    expect(result).toBe(false);
+  }, 20_000);
+
+  it("returns false without throwing when the scan budget is exceeded before any fresh file is found", async () => {
+    const p = path.join(tmp, "projects");
+    await fs.mkdir(path.join(p, "a"), { recursive: true });
+    // This file is fresh - absent a budget, shouldProbe would return true.
+    await fs.writeFile(path.join(p, "a", "conv-1.jsonl"), "", "utf8");
+
+    let calls = 0;
+    const clock = () => {
+      calls++;
+      // First call establishes the scan start time; every call after that
+      // reports a wall-clock time far past the (tiny) budget.
+      return calls === 1 ? 0 : 10_000;
+    };
+
+    const result = await shouldProbe({
+      projectsDir: p,
+      now: Date.now(),
+      gateMs: 60_000,
+      scanBudgetMs: 1,
+      clock,
+    });
+    expect(result).toBe(false);
+  });
 });

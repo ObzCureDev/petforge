@@ -9,6 +9,10 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+// Same default-import style state.ts uses, so this binds to the exact same
+// cached CJS module.exports object that `withStateLock` calls `.lock` on —
+// spying here observes (and can inspect the args of) the real production call.
+import lockfile from "proper-lockfile";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as PathsMod from "../src/core/paths.js";
@@ -311,6 +315,80 @@ describe("state", () => {
     // (proving the fix routed through LOCK_FILE rather than the
     // existence-conditional ternary).
     await expect(fs.access(paths.LOCK_FILE)).resolves.toBeUndefined();
+  });
+
+  // V3.7.11 regression coverage: proper-lockfile's default onCompromised is
+  // `(err) => { throw err; }`, thrown from ITS OWN internal setInterval — an
+  // uncaught exception that kills the whole `petforge up` daemon (collector +
+  // web server + quota probe) whenever the lock refresh misses the stale
+  // window (laptop sleep, or the lock getting stolen by a short-lived hook
+  // invocation). The fix is to give proper-lockfile a non-throwing handler.
+  it("onStateLockCompromised never throws, and best-effort logs the compromise", async () => {
+    const { paths, state } = await loadModules();
+    await state.ensurePetforgeDir();
+
+    // This IS the contract: calling the real handler with a real Error must
+    // return normally, not throw. If this ever throws again, proper-lockfile
+    // would propagate it straight out of its internal timer and crash the
+    // daemon exactly as seen in production err.log.
+    expect(() => state.onStateLockCompromised(new Error("ECOMPROMISED: simulated"))).not.toThrow();
+
+    // Verify the real (non-mocked) side effect too: logHookError is
+    // fire-and-forget, so poll briefly for the async append to land instead
+    // of asserting against a mock.
+    const deadline = Date.now() + 1000;
+    let content = "";
+    while (Date.now() < deadline) {
+      try {
+        content = await fs.readFile(paths.HOOK_ERROR_LOG, "utf8");
+        if (content.includes("state lock compromised")) break;
+      } catch {
+        // log file not written yet - keep polling
+      }
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(content).toContain("state lock compromised");
+    expect(content).toContain("ECOMPROMISED: simulated");
+  });
+
+  it("withStateLock passes onCompromised to lockfile.lock and it never throws when invoked", async () => {
+    const { petEngine, schema, state } = await loadModules();
+    const lockSpy = vi.spyOn(lockfile, "lock");
+
+    try {
+      await state.withStateLock(
+        (s) => {
+          s.counters.promptsTotal = 1;
+        },
+        { onMissingOrCorrupt: () => schema.createInitialState(testPet(petEngine)) },
+      );
+
+      expect(lockSpy).toHaveBeenCalledTimes(1);
+      const opts = lockSpy.mock.calls[0]?.[1];
+      expect(opts?.onCompromised).toBeTypeOf("function");
+      expect(opts?.onCompromised).toBe(state.onStateLockCompromised);
+
+      // The real contract under test: whatever function withStateLock hands
+      // to proper-lockfile, invoking it directly must not throw/reject —
+      // that is precisely what stands between a stale lock and a crashed
+      // long-running `petforge up` daemon.
+      expect(() => opts?.onCompromised?.(new Error("ECOMPROMISED: simulated"))).not.toThrow();
+
+      // Other lock semantics must be untouched by this change.
+      expect(opts?.stale).toBe(5000);
+      expect(opts?.realpath).toBe(false);
+      // Pin the tuned retry budget too, so accidental drift is caught (it is
+      // sized to stay under the 5 s hook timeout — see the rationale comment
+      // in withStateLock).
+      expect(opts?.retries).toEqual({
+        retries: 20,
+        factor: 1.2,
+        minTimeout: 20,
+        maxTimeout: 200,
+      });
+    } finally {
+      lockSpy.mockRestore();
+    }
   });
 });
 

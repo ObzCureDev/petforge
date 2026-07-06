@@ -113,6 +113,121 @@ describe("runQuotaDaemon", () => {
     await fs.rm(tmp, { recursive: true, force: true });
   });
 
+  it("survives a wedged tick (a hung await must not kill the loop)", async () => {
+    const { runQuotaDaemon } = await loadDeps();
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response("{}", {
+          status: 200,
+          headers: {
+            "anthropic-ratelimit-unified-5h-utilization": "0.42",
+            "anthropic-ratelimit-unified-5h-reset": "1700000500",
+            "anthropic-ratelimit-unified-5h-status": "allowed",
+          },
+        }),
+    );
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "pf-d-"));
+    await fs.mkdir(path.join(tmp, "p"), { recursive: true });
+    await fs.writeFile(path.join(tmp, "p", "conv.jsonl"), "", "utf8");
+
+    // Simulates the production bug: the FIRST call to resolveToken (which
+    // runQuotaDaemon awaits mid-tick) hangs forever - e.g. withStateLock
+    // wedged after an OS sleep/resume. Subsequent calls resolve normally.
+    // Without a per-tick timeout, tick 1 never settles, `finally` never
+    // runs, and no next tick is ever scheduled - the loop is silently dead.
+    let resolveCalls = 0;
+    const resolveToken = async () => {
+      resolveCalls++;
+      if (resolveCalls === 1) {
+        await new Promise<never>(() => {
+          // never resolves/rejects - simulates a wedged await
+        });
+      }
+      return { kind: "ok", token: "sk-x", source: "file" } as const;
+    };
+
+    const handle = await runQuotaDaemon({
+      resolveToken,
+      fetchImpl,
+      projectsDir: tmp,
+      probeIntervalMs: 20,
+      probeGateMs: 60_000,
+      // Looser than the opening opt-in withStateLock's fsync+rename cost so a
+      // slow runner can't time out the healthy tick before reaching resolveToken.
+      tickTimeoutMs: 200,
+      now: () => Date.now(),
+    });
+
+    // Poll for the probe to fire, bounded by a wall-clock deadline so the
+    // test itself cannot hang even if the fix is broken.
+    const start = Date.now();
+    while (fetchImpl.mock.calls.length === 0 && Date.now() - start < 5_000) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await handle.close();
+    expect(resolveCalls).toBeGreaterThanOrEqual(2);
+    expect(fetchImpl).toHaveBeenCalled();
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("logs a throttled trace when a tick genuinely times out, but not on every tick", async () => {
+    const { runQuotaDaemon, getHookErrorLog } = await loadDeps();
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "pf-d-"));
+    await fs.mkdir(path.join(tmp, "p"), { recursive: true });
+    await fs.writeFile(path.join(tmp, "p", "conv.jsonl"), "", "utf8");
+
+    // Every resolveToken call hangs forever - every single tick genuinely
+    // times out (as opposed to the "survives a wedged tick" test above,
+    // which only wedges once).
+    const resolveToken = () => new Promise<never>(() => {});
+
+    // Fully test-controlled clock, starting well past the 1h throttle
+    // window so the very first timeout is guaranteed to log.
+    let simulatedNow = 10 * 60 * 60_000;
+    const handle = await runQuotaDaemon({
+      resolveToken,
+      projectsDir: tmp,
+      probeIntervalMs: 10,
+      probeGateMs: 60_000,
+      tickTimeoutMs: 20,
+      now: () => simulatedNow,
+    });
+
+    const logFile = getHookErrorLog();
+    const readLogLines = async (): Promise<string[]> => {
+      try {
+        const content = await fs.readFile(logFile, "utf8");
+        return content.split("\n").filter((l: string) => l.includes("quota probe tick exceeded"));
+      } catch {
+        return [];
+      }
+    };
+
+    // Wait (bounded) for the first throttled log line to appear.
+    const start1 = Date.now();
+    while ((await readLogLines()).length === 0 && Date.now() - start1 < 3_000) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect((await readLogLines()).length).toBe(1);
+
+    // Let several more ticks time out while still inside the throttle
+    // window - the throttle must suppress every one of them.
+    await new Promise((r) => setTimeout(r, 150));
+    expect((await readLogLines()).length).toBe(1);
+
+    // Advance the simulated clock past the throttle window; the next tick
+    // timeout should produce a second (bounded, not per-tick) log line.
+    simulatedNow += 60 * 60_000 + 1;
+    const start2 = Date.now();
+    while ((await readLogLines()).length < 2 && Date.now() - start2 < 3_000) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect((await readLogLines()).length).toBe(2);
+
+    await handle.close();
+    await fs.rm(tmp, { recursive: true, force: true });
+  }, 10_000);
+
   it("stops probing when opt-out is flipped at runtime", async () => {
     const { runQuotaDaemon, withStateLock } = await loadDeps();
     const fetchImpl = vi.fn(

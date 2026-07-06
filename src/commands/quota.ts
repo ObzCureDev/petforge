@@ -6,13 +6,14 @@
  * `runQuotaDaemon` so `up.ts` can co-orchestrate it with collect + serve.
  */
 
+import { TimeoutError, withTimeout } from "../core/async.js";
 import { checkQuotaAchievements } from "../core/quota/achievements.js";
 import { applyProbeResult } from "../core/quota/apply.js";
 import { type ResolveResult, resolveOAuthToken } from "../core/quota/credentials.js";
 import { defaultProjectsDir, shouldProbe } from "../core/quota/jsonl-gate.js";
 import { probe } from "../core/quota/probe.js";
 import { createInitialQuota, type QuotaState } from "../core/quota/schema.js";
-import { ensureQuotaCounters, withStateLock } from "../core/state.js";
+import { ensureQuotaCounters, logHookError, withStateLock } from "../core/state.js";
 
 export interface QuotaCliDeps {
   resolveToken?: () => Promise<ResolveResult>;
@@ -140,6 +141,8 @@ export interface QuotaDaemonOptions extends QuotaCliDeps {
   projectsDir?: string;
   probeIntervalMs?: number;
   probeGateMs?: number;
+  /** Bounds an entire tick body so a hung await can never kill the loop. */
+  tickTimeoutMs?: number;
 }
 
 export interface QuotaDaemonHandle {
@@ -148,57 +151,98 @@ export interface QuotaDaemonHandle {
 
 const DEFAULT_PROBE_INTERVAL_MS = 5 * 60_000;
 const DEFAULT_PROBE_GATE_MS = 10 * 60_000;
+// Comfortably greater than probe()'s own 10s AbortController timeout plus the
+// two withStateLock calls' retry budgets, so a well-behaved tick always
+// finishes well inside this window - it only ever fires for truly wedged awaits.
+const DEFAULT_TICK_TIMEOUT_MS = 30_000;
+
+// Throttle for the tick-timeout best-effort log — a wedged dependency (e.g. a
+// stuck filesystem after sleep/resume) can stay wedged for a long time, and
+// every tick would otherwise re-timeout and re-log at `interval` cadence.
+// One log per hour is plenty to notice the daemon is degraded without
+// spamming ~/.petforge/hook-errors.log.
+const TIMEOUT_LOG_THROTTLE_MS = 60 * 60_000;
 
 export async function runQuotaDaemon(opts: QuotaDaemonOptions = {}): Promise<QuotaDaemonHandle> {
   const resolve = opts.resolveToken ?? resolveOAuthToken;
   const projectsDir = opts.projectsDir ?? defaultProjectsDir();
   const interval = opts.probeIntervalMs ?? DEFAULT_PROBE_INTERVAL_MS;
   const gate = opts.probeGateMs ?? DEFAULT_PROBE_GATE_MS;
+  const tickTimeoutMs = opts.tickTimeoutMs ?? DEFAULT_TICK_TIMEOUT_MS;
   const nowFn = opts.now ?? (() => Date.now());
 
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
+  let lastTimeoutLogTs = 0;
 
-  const tick = async (): Promise<void> => {
-    if (stopped) return;
-    try {
-      // Re-read opt-in each tick - user may have disabled at runtime.
-      let optIn = false;
-      await withStateLock(async (s) => {
-        ensureQuotaCounters(s);
-        optIn = s.counters.quota?.optIn === true;
-      });
-      if (!optIn) return;
+  const runTickBody = async (): Promise<void> => {
+    // Re-read opt-in each tick - user may have disabled at runtime.
+    let optIn = false;
+    await withStateLock(async (s) => {
+      ensureQuotaCounters(s);
+      optIn = s.counters.quota?.optIn === true;
+    });
+    if (!optIn) return;
 
-      const gateOk = await shouldProbe({
-        projectsDir,
-        now: nowFn(),
-        gateMs: gate,
-      });
-      if (!gateOk) return;
+    const gateOk = await shouldProbe({
+      projectsDir,
+      now: nowFn(),
+      gateMs: gate,
+    });
+    if (!gateOk) return;
 
-      const tok = await resolve();
-      if (tok.kind !== "ok") {
-        await withStateLock(async (s) => {
-          ensureQuotaCounters(s);
-          const q = s.counters.quota;
-          if (!q) return;
-          q.lastProbeOk = false;
-          q.lastError = tok.kind === "missing" ? "credentials missing" : "credentials malformed";
-          q.lastProbeTs = nowFn();
-        });
-        return;
-      }
-      const r = await probe(tok.token, { fetchImpl: opts.fetchImpl });
+    const tok = await resolve();
+    if (tok.kind !== "ok") {
       await withStateLock(async (s) => {
         ensureQuotaCounters(s);
         const q = s.counters.quota;
         if (!q) return;
-        applyProbeResult(q, r, nowFn());
-        checkQuotaAchievements(s);
+        q.lastProbeOk = false;
+        q.lastError = tok.kind === "missing" ? "credentials missing" : "credentials malformed";
+        q.lastProbeTs = nowFn();
       });
-    } catch {
+      return;
+    }
+    const r = await probe(tok.token, { fetchImpl: opts.fetchImpl });
+    await withStateLock(async (s) => {
+      ensureQuotaCounters(s);
+      const q = s.counters.quota;
+      if (!q) return;
+      applyProbeResult(q, r, nowFn());
+      checkQuotaAchievements(s);
+    });
+  };
+
+  const tick = async (): Promise<void> => {
+    if (stopped) return;
+    try {
+      // Bound the WHOLE tick body so this async function always settles.
+      // Without this, a wedged await inside runTickBody (e.g. withStateLock
+      // stuck after an OS sleep/resume) would never let this try/catch
+      // settle, `finally` below would never run, and no next tick would
+      // ever be scheduled - the loop would be silently dead forever, even
+      // though the parent process stays alive. Timing out here just
+      // abandons the wedged body and lets the next tick proceed on schedule.
+      // Trade-off: an abandoned body that later unwedges can land a stale,
+      // out-of-order applyProbeResult write (last writer wins), briefly
+      // skewing burn rate for one interval; withStateLock still serializes
+      // writes so state never corrupts and the next clean tick self-corrects.
+      await withTimeout(runTickBody(), tickTimeoutMs);
+    } catch (e) {
       // never throw out of the tick - the daemon must survive transient errors
+      // (including a tick-body timeout from the guard above). Ordinary
+      // transient errors (network blips, credential hiccups) stay silent by
+      // design - only a genuine tick timeout gets a throttled trace, since
+      // that's the signal an operator would actually want to notice.
+      if (e instanceof TimeoutError) {
+        const t = nowFn();
+        if (t - lastTimeoutLogTs >= TIMEOUT_LOG_THROTTLE_MS) {
+          lastTimeoutLogTs = t;
+          void logHookError(
+            `quota probe tick exceeded ${tickTimeoutMs}ms and was abandoned; loop rescheduled`,
+          );
+        }
+      }
     } finally {
       if (!stopped) timer = setTimeout(tick, interval);
     }
