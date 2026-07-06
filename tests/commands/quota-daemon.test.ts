@@ -152,7 +152,9 @@ describe("runQuotaDaemon", () => {
       projectsDir: tmp,
       probeIntervalMs: 20,
       probeGateMs: 60_000,
-      tickTimeoutMs: 50,
+      // Looser than the opening opt-in withStateLock's fsync+rename cost so a
+      // slow runner can't time out the healthy tick before reaching resolveToken.
+      tickTimeoutMs: 200,
       now: () => Date.now(),
     });
 

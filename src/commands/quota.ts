@@ -244,6 +244,10 @@ export async function runQuotaDaemon(opts: QuotaDaemonOptions = {}): Promise<Quo
       // ever be scheduled - the loop would be silently dead forever, even
       // though the parent process stays alive. Timing out here just
       // abandons the wedged body and lets the next tick proceed on schedule.
+      // Trade-off: an abandoned body that later unwedges can land a stale,
+      // out-of-order applyProbeResult write (last writer wins), briefly
+      // skewing burn rate for one interval; withStateLock still serializes
+      // writes so state never corrupts and the next clean tick self-corrects.
       await withTimeout(runTickBody(), tickTimeoutMs);
     } catch {
       // never throw out of the tick - the daemon must survive transient errors
