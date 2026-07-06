@@ -6,13 +6,14 @@
  * `runQuotaDaemon` so `up.ts` can co-orchestrate it with collect + serve.
  */
 
+import { TimeoutError, withTimeout } from "../core/async.js";
 import { checkQuotaAchievements } from "../core/quota/achievements.js";
 import { applyProbeResult } from "../core/quota/apply.js";
 import { type ResolveResult, resolveOAuthToken } from "../core/quota/credentials.js";
 import { defaultProjectsDir, shouldProbe } from "../core/quota/jsonl-gate.js";
 import { probe } from "../core/quota/probe.js";
 import { createInitialQuota, type QuotaState } from "../core/quota/schema.js";
-import { ensureQuotaCounters, withStateLock } from "../core/state.js";
+import { ensureQuotaCounters, logHookError, withStateLock } from "../core/state.js";
 
 export interface QuotaCliDeps {
   resolveToken?: () => Promise<ResolveResult>;
@@ -155,35 +156,12 @@ const DEFAULT_PROBE_GATE_MS = 10 * 60_000;
 // finishes well inside this window - it only ever fires for truly wedged awaits.
 const DEFAULT_TICK_TIMEOUT_MS = 30_000;
 
-/**
- * Race `promise` against a timer that rejects after `ms`. Whichever settles
- * first wins; the loser is abandoned (its side effects, if any, still run
- * eventually, but the caller stops waiting on it).
- *
- * Two correctness requirements this depends on:
- *  - The timeout timer is cleared as soon as `promise` settles first, so we
- *    never leak a pending setTimeout.
- *  - The timeout timer is `unref()`'d so it can never, by itself, keep the
- *    Node.js event loop (and therefore the process) alive.
- */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`timed out after ${ms}ms`));
-    }, ms);
-    timer.unref?.();
-    promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-    );
-  });
-}
+// Throttle for the tick-timeout best-effort log — a wedged dependency (e.g. a
+// stuck filesystem after sleep/resume) can stay wedged for a long time, and
+// every tick would otherwise re-timeout and re-log at `interval` cadence.
+// One log per hour is plenty to notice the daemon is degraded without
+// spamming ~/.petforge/hook-errors.log.
+const TIMEOUT_LOG_THROTTLE_MS = 60 * 60_000;
 
 export async function runQuotaDaemon(opts: QuotaDaemonOptions = {}): Promise<QuotaDaemonHandle> {
   const resolve = opts.resolveToken ?? resolveOAuthToken;
@@ -195,6 +173,7 @@ export async function runQuotaDaemon(opts: QuotaDaemonOptions = {}): Promise<Quo
 
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
+  let lastTimeoutLogTs = 0;
 
   const runTickBody = async (): Promise<void> => {
     // Re-read opt-in each tick - user may have disabled at runtime.
@@ -249,9 +228,21 @@ export async function runQuotaDaemon(opts: QuotaDaemonOptions = {}): Promise<Quo
       // skewing burn rate for one interval; withStateLock still serializes
       // writes so state never corrupts and the next clean tick self-corrects.
       await withTimeout(runTickBody(), tickTimeoutMs);
-    } catch {
+    } catch (e) {
       // never throw out of the tick - the daemon must survive transient errors
-      // (including a tick-body timeout from the guard above)
+      // (including a tick-body timeout from the guard above). Ordinary
+      // transient errors (network blips, credential hiccups) stay silent by
+      // design - only a genuine tick timeout gets a throttled trace, since
+      // that's the signal an operator would actually want to notice.
+      if (e instanceof TimeoutError) {
+        const t = nowFn();
+        if (t - lastTimeoutLogTs >= TIMEOUT_LOG_THROTTLE_MS) {
+          lastTimeoutLogTs = t;
+          void logHookError(
+            `quota probe tick exceeded ${tickTimeoutMs}ms and was abandoned; loop rescheduled`,
+          );
+        }
+      }
     } finally {
       if (!stopped) timer = setTimeout(tick, interval);
     }

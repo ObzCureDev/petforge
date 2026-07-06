@@ -348,6 +348,57 @@ describe("petforge serve - spend injection", () => {
     }
   });
 
+  it("recovers from a wedged spend refresh instead of dying forever", async () => {
+    // Reproduces the bug: a computeSpendWithDeltaImpl that hangs forever on
+    // its first call must not permanently disable spend refresh. With a
+    // small spendTimeoutMs, the wedged first call is abandoned, the
+    // single-flight guard is released in `finally`, and the NEXT interval
+    // fire's call (which resolves normally) should complete and populate
+    // spendCache.
+    let calls = 0;
+    const computeSpendWithDeltaImpl = (): Promise<{
+      snapshot: typeof stubSnapshot;
+      delta: { deltaCents: number; deltaApiCents: number; deltaMessages: number };
+    }> => {
+      calls++;
+      if (calls === 1) {
+        return new Promise(() => {
+          // never resolves/rejects - simulates a wedged filesystem scan
+        });
+      }
+      return Promise.resolve({
+        snapshot: stubSnapshot,
+        delta: { deltaCents: 0, deltaApiCents: 0, deltaMessages: 0 },
+      });
+    };
+
+    const { startServer } = await loadServe();
+    const handle = await startServer({
+      port: 0,
+      computeSpendWithDeltaImpl,
+      spendTimeoutMs: 50,
+      spendRefreshMs: 100,
+    });
+    try {
+      // Bounded wall-clock deadline so a broken fix can never hang CI.
+      const deadline = Date.now() + 5_000;
+      let body: typeof stubSnapshot | null = null;
+      while (Date.now() < deadline) {
+        const res = await fetch(`${handle.url}/spend`);
+        if (res.status === 200) {
+          body = (await res.json()) as typeof stubSnapshot;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      expect(body).not.toBeNull();
+      expect(body?.lifetimeCents).toBe(2_451_687);
+      expect(calls).toBeGreaterThanOrEqual(2);
+    } finally {
+      await handle.close();
+    }
+  }, 10_000);
+
   it("injects spend into the embedded state on GET /", async () => {
     await seedState();
     const { startServer } = await loadServe();

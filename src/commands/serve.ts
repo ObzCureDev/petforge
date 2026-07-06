@@ -25,6 +25,7 @@
 import { promises as fs, watch as fsWatch } from "node:fs";
 import http from "node:http";
 import os from "node:os";
+import { withTimeout } from "../core/async.js";
 import { getStateFile } from "../core/paths.js";
 import type { State } from "../core/schema.js";
 import {
@@ -62,6 +63,12 @@ export interface ServeOptions {
    * entirely (no scan, no SPEND row).
    */
   spendRefreshMs?: number;
+  /**
+   * Bounds a single `refreshSpend` scan (see {@link SPEND_REFRESH_TIMEOUT_MS}
+   * for why this exists and why the default is generous). Injectable so
+   * tests can force a short timeout without waiting 5 minutes.
+   */
+  spendTimeoutMs?: number;
   /** Injectable scan for tests. Defaults to the real {@link computeSpend}. */
   computeSpendImpl?: (opts: { projectsDir?: string }) => Promise<SpendSnapshot>;
   /**
@@ -84,6 +91,12 @@ export interface ServeHandle {
 }
 
 const DEFAULT_PORT = 7878;
+// Generous on purpose: a real scan of ~/.claude/projects can legitimately
+// take tens of seconds on large installs, and this timeout only exists to
+// guard against an INFINITE wedge (e.g. a filesystem stall after OS
+// sleep/resume - the same trigger class hardened for the quota daemon and
+// the state lock), never to cut off a slow-but-progressing scan.
+const SPEND_REFRESH_TIMEOUT_MS = 5 * 60_000;
 
 export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle> {
   const requestedPort = opts.port ?? DEFAULT_PORT;
@@ -104,54 +117,68 @@ export async function startServer(opts: ServeOptions = {}): Promise<ServeHandle>
   // legacy test injects only `computeSpendImpl`.
   const scanSpend = opts.computeSpendImpl ?? computeSpend;
   const scanSpendWithDelta = opts.computeSpendWithDeltaImpl ?? computeSpendWithDelta;
+  const spendTimeoutMs = opts.spendTimeoutMs ?? SPEND_REFRESH_TIMEOUT_MS;
   let spendCache: SpendSnapshot | null = null;
   let spendTimer: NodeJS.Timeout | null = null;
   let spendInFlight = false;
+  // The single-flight guard (`spendInFlight`) is only ever cleared in
+  // `finally` below. If the scan/lock body genuinely wedges - the same OS
+  // sleep/resume trigger class hardened for the quota daemon and the state
+  // lock - `spendInFlight` would stay `true` forever and every future
+  // `setInterval` fire would early-return at the top, silently killing spend
+  // refresh for the life of the process even though the rest of `up` stays
+  // alive. Bounding the body with `withTimeout` guarantees it always
+  // settles, so `finally` always runs and the guard is always released; a
+  // wedged scan is simply abandoned and retried on the next interval.
   const refreshSpend = async (): Promise<void> => {
     if (spendInFlight) return;
     spendInFlight = true;
     try {
-      if (opts.computeSpendImpl && !opts.computeSpendWithDeltaImpl) {
-        // Legacy test path: no delta integration, just refresh the snapshot.
-        spendCache = await scanSpend({});
-        scheduleBroadcast();
-        return;
-      }
-      // Read the prior watermark first so we only count strictly-new messages.
-      // We tolerate a missing state.json (first install): sinceTs stays 0,
-      // which makes the first scan seed accumulated with the full lifetime.
-      let sinceTs = 0;
-      try {
-        const cur = await readState();
-        sinceTs = cur.counters.spendPersisted?.lastSeenNewestTs ?? 0;
-      } catch {
-        // no state yet — bootstrap path
-      }
-      const { snapshot, delta } = await scanSpendWithDelta(sinceTs, {});
-      spendCache = snapshot;
-      // Integrate the delta. The wipe-killer at writeStateAtomic protects
-      // the pet; this write only touches counters.spendPersisted.
-      try {
-        await withStateLock(async (s) => {
-          const prev = s.counters.spendPersisted;
-          s.counters.spendPersisted = applySpendDelta(
-            prev,
-            delta,
-            snapshot.newestTs,
-            snapshot.lastScanTs,
-          );
-        });
-      } catch {
-        // No state yet, or a transient lock failure. The next tick will retry;
-        // the snapshot cache is still updated so the web view stays fresh.
-      }
-      scheduleBroadcast();
+      await withTimeout(runRefresh(), spendTimeoutMs);
     } catch {
-      // a failed scan leaves the previous snapshot + persisted state in place
+      // a failed or timed-out scan leaves the previous snapshot + persisted
+      // state in place
     } finally {
       spendInFlight = false;
     }
   };
+  async function runRefresh(): Promise<void> {
+    if (opts.computeSpendImpl && !opts.computeSpendWithDeltaImpl) {
+      // Legacy test path: no delta integration, just refresh the snapshot.
+      spendCache = await scanSpend({});
+      scheduleBroadcast();
+      return;
+    }
+    // Read the prior watermark first so we only count strictly-new messages.
+    // We tolerate a missing state.json (first install): sinceTs stays 0,
+    // which makes the first scan seed accumulated with the full lifetime.
+    let sinceTs = 0;
+    try {
+      const cur = await readState();
+      sinceTs = cur.counters.spendPersisted?.lastSeenNewestTs ?? 0;
+    } catch {
+      // no state yet — bootstrap path
+    }
+    const { snapshot, delta } = await scanSpendWithDelta(sinceTs, {});
+    spendCache = snapshot;
+    // Integrate the delta. The wipe-killer at writeStateAtomic protects
+    // the pet; this write only touches counters.spendPersisted.
+    try {
+      await withStateLock(async (s) => {
+        const prev = s.counters.spendPersisted;
+        s.counters.spendPersisted = applySpendDelta(
+          prev,
+          delta,
+          snapshot.newestTs,
+          snapshot.lastScanTs,
+        );
+      });
+    } catch {
+      // No state yet, or a transient lock failure. The next tick will retry;
+      // the snapshot cache is still updated so the web view stays fresh.
+    }
+    scheduleBroadcast();
+  }
   const injectSpend = (state: State): State => {
     if (!spendCache) return state;
     return { ...state, counters: { ...state.counters, spend: spendCache } };
