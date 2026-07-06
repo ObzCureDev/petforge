@@ -377,6 +377,15 @@ describe("state", () => {
       // Other lock semantics must be untouched by this change.
       expect(opts?.stale).toBe(5000);
       expect(opts?.realpath).toBe(false);
+      // Pin the tuned retry budget too, so accidental drift is caught (it is
+      // sized to stay under the 5 s hook timeout — see the rationale comment
+      // in withStateLock).
+      expect(opts?.retries).toEqual({
+        retries: 20,
+        factor: 1.2,
+        minTimeout: 20,
+        maxTimeout: 200,
+      });
     } finally {
       lockSpy.mockRestore();
     }
