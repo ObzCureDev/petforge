@@ -11,10 +11,12 @@
  *
  * Fix: explore directories best-first by their own mtime (the most
  * recently modified directory is expanded next). An actively-used
- * project's directory mtime is bumped whenever its session `.jsonl` is
- * created/updated, so this ordering surfaces the active project almost
- * immediately regardless of how many thousands of unrelated archived
- * files exist elsewhere. Each directory's own `.jsonl` files are checked
+ * project's directory mtime is bumped whenever a session `.jsonl` is
+ * created within it (as well as on add/remove/rename) - note it is NOT
+ * bumped when an existing `.jsonl` is merely appended to, so the ordering
+ * is a heuristic, strongest when a session starts. It surfaces the active
+ * project almost immediately regardless of how many thousands of unrelated
+ * archived files exist elsewhere. Each directory's own `.jsonl` files are checked
  * (with an early-exit on the first fresh one) before descending into its
  * subdirectories. The walk is bounded by a wall-clock scan budget rather
  * than a raw visited-file count, with a very high visited-count backstop
@@ -93,7 +95,12 @@ export async function shouldProbe(opts: ShouldProbeOptions): Promise<boolean> {
 
     const subdirs: string[] = [];
     for (const e of entries) {
+      // Make the wall-clock budget authoritative regardless of a single
+      // directory's fan-out: a dir with a huge number of stale files must
+      // not run to MAX_FILES_VISITED before the next budget check. Sample
+      // the clock cheaply (every 256 entries) rather than every iteration.
       if (++visited > MAX_FILES_VISITED) return false;
+      if ((visited & 255) === 0 && clock() - startedAt > scanBudgetMs) return false;
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
         subdirs.push(full);

@@ -97,6 +97,44 @@ describe("quota/jsonl-gate", () => {
     expect(result).toBe(true);
   }, 20_000);
 
+  it("returns false at scale when ALL files are stale (frontier drains to empty by exhaustion, not budget)", async () => {
+    const p = path.join(tmp, "projects");
+    const now = Date.now();
+    const staleTimeSec = (now - 60 * 60_000) / 1000; // 1h old, well before the gate cutoff
+
+    const STALE_DIR_COUNT = 5;
+    const STALE_FILES_PER_DIR = 500; // 2500 total .jsonl - exceeds the old MAX_FILES_VISITED (2000)
+
+    for (let d = 0; d < STALE_DIR_COUNT; d++) {
+      const dir = path.join(p, `stale-${d}`);
+      await fs.mkdir(dir, { recursive: true });
+      await Promise.all(
+        Array.from({ length: STALE_FILES_PER_DIR }, (_, i) =>
+          fs.writeFile(path.join(dir, `conv-${i}.jsonl`), "", "utf8"),
+        ),
+      );
+      await fs.utimes(dir, staleTimeSec, staleTimeSec);
+    }
+    for (let d = 0; d < STALE_DIR_COUNT; d++) {
+      const dir = path.join(p, `stale-${d}`);
+      await Promise.all(
+        Array.from({ length: STALE_FILES_PER_DIR }, (_, i) =>
+          fs.utimes(path.join(dir, `conv-${i}.jsonl`), staleTimeSec, staleTimeSec),
+        ),
+      );
+    }
+
+    // No fresh file anywhere: a generous budget guarantees the false result
+    // comes from the frontier fully draining, not from a budget cutoff.
+    const result = await shouldProbe({
+      projectsDir: p,
+      now,
+      gateMs: 60_000,
+      scanBudgetMs: 60_000,
+    });
+    expect(result).toBe(false);
+  }, 20_000);
+
   it("returns false without throwing when the scan budget is exceeded before any fresh file is found", async () => {
     const p = path.join(tmp, "projects");
     await fs.mkdir(path.join(p, "a"), { recursive: true });
