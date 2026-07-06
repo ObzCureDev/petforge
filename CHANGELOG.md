@@ -1,5 +1,46 @@
 # Changelog
 
+## 3.7.11 - 2026-07-06
+
+### Fixes
+
+- **Quota (and spend) refresh could silently stop on a long-running `petforge up`
+  while the process itself stayed alive.** Symptom: the web view / card kept
+  streaming today's spend in real time (that path is driven by the Claude Code
+  hook writing `state.json`), but the `QUOTAS` block stayed frozen at the last
+  successful probe for hours — "everything looks up, but the quota is stuck at
+  last night". Three independent root causes, all in loops hosted by `up`:
+  - **The state lock could crash the whole process.** `withStateLock` acquired
+    the `proper-lockfile` lock without an `onCompromised` handler, so the
+    library default (`(err) => { throw err }`) fired from its internal
+    refresh timer whenever the lock was compromised — routine on a laptop that
+    sleeps (the process is frozen past the 5 s `stale` threshold) or when the
+    frequent hook steals the stale lock. That throw is uncaught (thrown from a
+    timer) and killed the collector + web server + quota daemon together
+    (observed as an `ECOMPROMISED` crash storm in the NSSM logs). Now a
+    non-throwing `onStateLockCompromised` logs best-effort and continues;
+    `writeStateAtomic`'s atomic rename + WIPE-KILLER remain the data backstop.
+  - **A single hung `await` permanently killed the quota probe loop.**
+    `runQuotaDaemon`'s tick rescheduled the next tick only in a `finally`, so if
+    any `await` in the body wedged (e.g. a state lock stuck after sleep/resume),
+    `finally` never ran and no further tick was ever scheduled — the loop was
+    dead while the HTTP server kept the process alive. The tick body is now
+    bounded by `withTimeout(..., 30 s)` so it always settles and always
+    reschedules; an abandoned tick is logged (throttled to once/hour).
+  - **The web server's spend-refresh loop had the same class of bug.**
+    `serve`'s `refreshSpend` reset its single-flight `spendInFlight` guard only
+    in `finally`; a wedged body would leave the guard stuck `true` and disable
+    all future spend rescans. Its body is now bounded by `withTimeout(..., 5 min)`
+    (generous enough never to cut off a legitimately slow scan) so the guard is
+    always released.
+
+### Notes
+
+- New shared helper `src/core/async.ts` (`withTimeout`) underpins the two loop
+  fixes; it deliberately retains a rejection handler on the abandoned promise so
+  a late rejection can never surface as an `unhandledRejection` (which would
+  crash the daemon on modern Node).
+
 ## 3.7.10 - 2026-06-19
 
 ### Fixes
