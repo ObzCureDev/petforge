@@ -113,6 +113,61 @@ describe("runQuotaDaemon", () => {
     await fs.rm(tmp, { recursive: true, force: true });
   });
 
+  it("survives a wedged tick (a hung await must not kill the loop)", async () => {
+    const { runQuotaDaemon } = await loadDeps();
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response("{}", {
+          status: 200,
+          headers: {
+            "anthropic-ratelimit-unified-5h-utilization": "0.42",
+            "anthropic-ratelimit-unified-5h-reset": "1700000500",
+            "anthropic-ratelimit-unified-5h-status": "allowed",
+          },
+        }),
+    );
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "pf-d-"));
+    await fs.mkdir(path.join(tmp, "p"), { recursive: true });
+    await fs.writeFile(path.join(tmp, "p", "conv.jsonl"), "", "utf8");
+
+    // Simulates the production bug: the FIRST call to resolveToken (which
+    // runQuotaDaemon awaits mid-tick) hangs forever - e.g. withStateLock
+    // wedged after an OS sleep/resume. Subsequent calls resolve normally.
+    // Without a per-tick timeout, tick 1 never settles, `finally` never
+    // runs, and no next tick is ever scheduled - the loop is silently dead.
+    let resolveCalls = 0;
+    const resolveToken = async () => {
+      resolveCalls++;
+      if (resolveCalls === 1) {
+        await new Promise<never>(() => {
+          // never resolves/rejects - simulates a wedged await
+        });
+      }
+      return { kind: "ok", token: "sk-x", source: "file" } as const;
+    };
+
+    const handle = await runQuotaDaemon({
+      resolveToken,
+      fetchImpl,
+      projectsDir: tmp,
+      probeIntervalMs: 20,
+      probeGateMs: 60_000,
+      tickTimeoutMs: 50,
+      now: () => Date.now(),
+    });
+
+    // Poll for the probe to fire, bounded by a wall-clock deadline so the
+    // test itself cannot hang even if the fix is broken.
+    const start = Date.now();
+    while (fetchImpl.mock.calls.length === 0 && Date.now() - start < 5_000) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await handle.close();
+    expect(resolveCalls).toBeGreaterThanOrEqual(2);
+    expect(fetchImpl).toHaveBeenCalled();
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
   it("stops probing when opt-out is flipped at runtime", async () => {
     const { runQuotaDaemon, withStateLock } = await loadDeps();
     const fetchImpl = vi.fn(

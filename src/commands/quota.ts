@@ -140,6 +140,8 @@ export interface QuotaDaemonOptions extends QuotaCliDeps {
   projectsDir?: string;
   probeIntervalMs?: number;
   probeGateMs?: number;
+  /** Bounds an entire tick body so a hung await can never kill the loop. */
+  tickTimeoutMs?: number;
 }
 
 export interface QuotaDaemonHandle {
@@ -148,57 +150,104 @@ export interface QuotaDaemonHandle {
 
 const DEFAULT_PROBE_INTERVAL_MS = 5 * 60_000;
 const DEFAULT_PROBE_GATE_MS = 10 * 60_000;
+// Comfortably greater than probe()'s own 10s AbortController timeout plus the
+// two withStateLock calls' retry budgets, so a well-behaved tick always
+// finishes well inside this window - it only ever fires for truly wedged awaits.
+const DEFAULT_TICK_TIMEOUT_MS = 30_000;
+
+/**
+ * Race `promise` against a timer that rejects after `ms`. Whichever settles
+ * first wins; the loser is abandoned (its side effects, if any, still run
+ * eventually, but the caller stops waiting on it).
+ *
+ * Two correctness requirements this depends on:
+ *  - The timeout timer is cleared as soon as `promise` settles first, so we
+ *    never leak a pending setTimeout.
+ *  - The timeout timer is `unref()`'d so it can never, by itself, keep the
+ *    Node.js event loop (and therefore the process) alive.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`timed out after ${ms}ms`));
+    }, ms);
+    timer.unref?.();
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
 
 export async function runQuotaDaemon(opts: QuotaDaemonOptions = {}): Promise<QuotaDaemonHandle> {
   const resolve = opts.resolveToken ?? resolveOAuthToken;
   const projectsDir = opts.projectsDir ?? defaultProjectsDir();
   const interval = opts.probeIntervalMs ?? DEFAULT_PROBE_INTERVAL_MS;
   const gate = opts.probeGateMs ?? DEFAULT_PROBE_GATE_MS;
+  const tickTimeoutMs = opts.tickTimeoutMs ?? DEFAULT_TICK_TIMEOUT_MS;
   const nowFn = opts.now ?? (() => Date.now());
 
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
 
-  const tick = async (): Promise<void> => {
-    if (stopped) return;
-    try {
-      // Re-read opt-in each tick - user may have disabled at runtime.
-      let optIn = false;
-      await withStateLock(async (s) => {
-        ensureQuotaCounters(s);
-        optIn = s.counters.quota?.optIn === true;
-      });
-      if (!optIn) return;
+  const runTickBody = async (): Promise<void> => {
+    // Re-read opt-in each tick - user may have disabled at runtime.
+    let optIn = false;
+    await withStateLock(async (s) => {
+      ensureQuotaCounters(s);
+      optIn = s.counters.quota?.optIn === true;
+    });
+    if (!optIn) return;
 
-      const gateOk = await shouldProbe({
-        projectsDir,
-        now: nowFn(),
-        gateMs: gate,
-      });
-      if (!gateOk) return;
+    const gateOk = await shouldProbe({
+      projectsDir,
+      now: nowFn(),
+      gateMs: gate,
+    });
+    if (!gateOk) return;
 
-      const tok = await resolve();
-      if (tok.kind !== "ok") {
-        await withStateLock(async (s) => {
-          ensureQuotaCounters(s);
-          const q = s.counters.quota;
-          if (!q) return;
-          q.lastProbeOk = false;
-          q.lastError = tok.kind === "missing" ? "credentials missing" : "credentials malformed";
-          q.lastProbeTs = nowFn();
-        });
-        return;
-      }
-      const r = await probe(tok.token, { fetchImpl: opts.fetchImpl });
+    const tok = await resolve();
+    if (tok.kind !== "ok") {
       await withStateLock(async (s) => {
         ensureQuotaCounters(s);
         const q = s.counters.quota;
         if (!q) return;
-        applyProbeResult(q, r, nowFn());
-        checkQuotaAchievements(s);
+        q.lastProbeOk = false;
+        q.lastError = tok.kind === "missing" ? "credentials missing" : "credentials malformed";
+        q.lastProbeTs = nowFn();
       });
+      return;
+    }
+    const r = await probe(tok.token, { fetchImpl: opts.fetchImpl });
+    await withStateLock(async (s) => {
+      ensureQuotaCounters(s);
+      const q = s.counters.quota;
+      if (!q) return;
+      applyProbeResult(q, r, nowFn());
+      checkQuotaAchievements(s);
+    });
+  };
+
+  const tick = async (): Promise<void> => {
+    if (stopped) return;
+    try {
+      // Bound the WHOLE tick body so this async function always settles.
+      // Without this, a wedged await inside runTickBody (e.g. withStateLock
+      // stuck after an OS sleep/resume) would never let this try/catch
+      // settle, `finally` below would never run, and no next tick would
+      // ever be scheduled - the loop would be silently dead forever, even
+      // though the parent process stays alive. Timing out here just
+      // abandons the wedged body and lets the next tick proceed on schedule.
+      await withTimeout(runTickBody(), tickTimeoutMs);
     } catch {
       // never throw out of the tick - the daemon must survive transient errors
+      // (including a tick-body timeout from the guard above)
     } finally {
       if (!stopped) timer = setTimeout(tick, interval);
     }
