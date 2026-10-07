@@ -25,11 +25,17 @@ describe("xp", () => {
     it("xpForLevel(100) === 1_000_000", () => {
       expect(xpForLevel(100)).toBe(1_000_000);
     });
+    it("xpForLevel(150) === 5_000_000", () => {
+      expect(xpForLevel(150)).toBe(5_000_000);
+    });
+    it("xpForLevel(200) === 20_000_000", () => {
+      expect(xpForLevel(200)).toBe(20_000_000);
+    });
   });
 
   describe("xpForLevel — properties", () => {
     it("is monotonically non-decreasing across all levels", () => {
-      for (let level = 1; level < 100; level++) {
+      for (let level = 1; level < 200; level++) {
         expect(xpForLevel(level + 1)).toBeGreaterThanOrEqual(xpForLevel(level));
       }
     });
@@ -40,10 +46,10 @@ describe("xp", () => {
       expect(xpForLevel(1)).toBe(0);
     });
 
-    it("clamps level >= 100 to 1_000_000", () => {
-      expect(xpForLevel(100)).toBe(1_000_000);
-      expect(xpForLevel(101)).toBe(1_000_000);
-      expect(xpForLevel(999)).toBe(1_000_000);
+    it("clamps level >= 200 to 20_000_000", () => {
+      expect(xpForLevel(200)).toBe(20_000_000);
+      expect(xpForLevel(201)).toBe(20_000_000);
+      expect(xpForLevel(999)).toBe(20_000_000);
     });
   });
 
@@ -62,15 +68,19 @@ describe("xp", () => {
       expect(levelForXp(30_000)).toBe(30);
       expect(levelForXp(100_000)).toBe(60);
       expect(levelForXp(1_000_000)).toBe(100);
+      expect(levelForXp(5_000_000)).toBe(150);
+      expect(levelForXp(20_000_000)).toBe(200);
     });
 
-    it("xp above 1M caps at level 100", () => {
-      expect(levelForXp(2_000_000)).toBe(100);
-      expect(levelForXp(Number.MAX_SAFE_INTEGER)).toBe(100);
+    it("xp above 20M caps at level 200", () => {
+      expect(levelForXp(25_000_000)).toBe(200);
+      expect(levelForXp(Number.MAX_SAFE_INTEGER)).toBe(200);
     });
 
     it("inverts xpForLevel for sample levels", () => {
-      for (const L of [1, 5, 11, 12, 25, 29, 30, 45, 59, 60, 80, 99, 100]) {
+      for (const L of [
+        1, 5, 11, 12, 25, 29, 30, 45, 59, 60, 80, 99, 100, 104, 125, 150, 175, 200,
+      ]) {
         expect(levelForXp(xpForLevel(L))).toBe(L);
       }
     });
@@ -80,6 +90,8 @@ describe("xp", () => {
       expect(levelForXp(29_999)).toBe(29);
       expect(levelForXp(99_999)).toBe(59);
       expect(levelForXp(999_999)).toBe(99);
+      expect(levelForXp(4_999_999)).toBe(149);
+      expect(levelForXp(19_999_999)).toBe(199);
     });
   });
 
@@ -117,6 +129,7 @@ describe("xp", () => {
     it("mythic at 100", () => {
       expect(phaseForLevel(100)).toBe("mythic");
       expect(phaseForLevel(150)).toBe("mythic");
+      expect(phaseForLevel(200)).toBe("mythic");
     });
   });
 
@@ -141,26 +154,38 @@ describe("xp", () => {
       expect(p.isMaxed).toBe(false);
     });
 
-    it("at level 100 isMaxed and never divides by zero", () => {
-      const p = nextLevelProgress(1_500_000);
+    it("at level 100 is not maxed and progresses toward 101", () => {
+      const p = nextLevelProgress(1_000_000);
       expect(p.currentLevel).toBe(100);
-      expect(p.nextLevel).toBe(100);
+      expect(p.nextLevel).toBe(101);
+      expect(p.isMaxed).toBe(false);
+      expect(p.xpIntoLevel).toBe(0);
+      expect(p.ratio).toBe(0);
+    });
+
+    it("at level 200 isMaxed and never divides by zero", () => {
+      const p = nextLevelProgress(25_000_000);
+      expect(p.currentLevel).toBe(200);
+      expect(p.nextLevel).toBe(200);
       expect(p.isMaxed).toBe(true);
       expect(p.ratio).toBe(1);
       expect(p.xpForNextLevel).toBe(1);
-      expect(p.xpIntoLevel).toBe(500_000);
+      expect(p.xpIntoLevel).toBe(5_000_000);
     });
 
-    it("exactly at the cap (1M xp) is maxed", () => {
-      const p = nextLevelProgress(1_000_000);
-      expect(p.currentLevel).toBe(100);
+    it("exactly at the cap (20M xp) is maxed", () => {
+      const p = nextLevelProgress(20_000_000);
+      expect(p.currentLevel).toBe(200);
       expect(p.isMaxed).toBe(true);
       expect(p.ratio).toBe(1);
       expect(p.xpIntoLevel).toBe(0);
     });
 
     it("ratio always lies in [0, 1] across the curve", () => {
-      for (const xp of [0, 100, 1_000, 1_999, 2_000, 8_000, 15_000, 50_000, 100_000, 999_999]) {
+      for (const xp of [
+        0, 100, 1_000, 1_999, 2_000, 8_000, 15_000, 50_000, 100_000, 999_999, 1_050_000, 5_000_000,
+        19_999_999,
+      ]) {
         const p = nextLevelProgress(xp);
         expect(p.ratio).toBeGreaterThanOrEqual(0);
         expect(p.ratio).toBeLessThanOrEqual(1);

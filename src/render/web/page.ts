@@ -512,7 +512,11 @@ const CLIENT_JS = `
   }
 
   function nextPhaseProgress(level) {
-    if (level >= 100) return { nextPhase: null, percent: 100, label: "MAX - ascended" };
+    if (level >= 200) return { nextPhase: null, percent: 100, label: "MAX - ascended" };
+    if (level >= 100) {
+      var pct = Math.min(100, Math.round(((level - 100) / (200 - 100)) * 100));
+      return { nextPhase: "singularity", percent: pct, label: "ascended (" + level + "/200)" };
+    }
     var current = PHASE_BOUNDARIES[0];
     var next = PHASE_BOUNDARIES[1];
     for (var i = 0; i < PHASE_BOUNDARIES.length - 1; i++) {
@@ -530,7 +534,7 @@ const CLIENT_JS = `
   var CATEGORY_ORDER = ["Evolution", "Streak", "Activity", "Time", "Coding", "Economy", "Collaboration"];
 
   function categorize(id) {
-    if (id.indexOf("hatch_") === 0) return "Evolution";
+    if (id.indexOf("hatch_") === 0 || id.indexOf("ascend_") === 0) return "Evolution";
     if (id.indexOf("streak_") === 0) return "Streak";
     if (id.indexOf("tool_") === 0 || id.indexOf("refactor_") === 0 || id.indexOf("polyglot_") === 0) return "Activity";
     if (id.indexOf("marathon_") === 0 || id.indexOf("night_") === 0) return "Time";
@@ -609,7 +613,8 @@ const CLIENT_JS = `
 
   function xpForLevel(level) {
     if (level <= 1) return 0;
-    if (level >= 100) return 1000000;
+    var maxB = BOUNDARIES[BOUNDARIES.length - 1];
+    if (maxB && level >= maxB.level) return maxB.xp;
     var upperIdx = -1;
     for (var i = 0; i < BOUNDARIES.length; i++) {
       if (level <= BOUNDARIES[i].level) { upperIdx = i; break; }
@@ -742,15 +747,23 @@ const CLIENT_JS = `
       case "hatch_adult": return { current: p.level || 0, target: 30 };
       case "hatch_elder": return { current: p.level || 0, target: 60 };
       case "hatch_mythic": return { current: p.level || 0, target: 100 };
+      // Ascent ladder (level 100+)
+      case "ascend_125": return { current: p.level || 0, target: 125 };
+      case "ascend_150": return { current: p.level || 0, target: 150 };
+      case "ascend_175": return { current: p.level || 0, target: 175 };
+      case "ascend_200": return { current: p.level || 0, target: 200 };
       // Streak
       case "streak_3d": return { current: c.streakDays || 0, target: 3 };
       case "streak_7d": return { current: c.streakDays || 0, target: 7 };
       case "streak_30d": return { current: c.streakDays || 0, target: 30 };
       case "streak_100d": return { current: c.streakDays || 0, target: 100 };
+      case "streak_200d": return { current: c.streakDays || 0, target: 200 };
       // Tool
       case "tool_5k": return { current: c.toolUseTotal || 0, target: 5000 };
       case "tool_25k": return { current: c.toolUseTotal || 0, target: 25000 };
       case "tool_100k": return { current: c.toolUseTotal || 0, target: 100000 };
+      case "tool_250k": return { current: c.toolUseTotal || 0, target: 250000 };
+      case "tool_500k": return { current: c.toolUseTotal || 0, target: 500000 };
       // Marathon
       case "marathon_4h": return { current: Math.min(FOUR_H, activeSessionDurationMs()), target: FOUR_H };
       case "marathon_12h": return { current: Math.min(TWELVE_H, activeSessionDurationMs()), target: TWELVE_H };
@@ -759,6 +772,7 @@ const CLIENT_JS = `
       case "night_200": return { current: c.nightOwlEvents || 0, target: 200 };
       case "night_1k": return { current: c.nightOwlEvents || 0, target: 1000 };
       case "night_5k": return { current: c.nightOwlEvents || 0, target: 5000 };
+      case "night_25k": return { current: c.nightOwlEvents || 0, target: 25000 };
       // Polyglot (max distinct extensions across active sessions)
       case "polyglot_5": return { current: maxOver("fileExtensions"), target: 5 };
       case "polyglot_8": return { current: maxOver("fileExtensions"), target: 8 };
@@ -767,18 +781,22 @@ const CLIENT_JS = `
       case "refactor_100": return { current: maxOver("toolUseCount"), target: 100 };
       case "refactor_250": return { current: maxOver("toolUseCount"), target: 250 };
       case "refactor_500": return { current: maxOver("toolUseCount"), target: 500 };
+      case "refactor_1k": return { current: maxOver("toolUseCount"), target: 1000 };
       // Code lines (OTel)
       case "code_10k": return { current: o.linesAdded || 0, target: 10000 };
       case "code_50k": return { current: o.linesAdded || 0, target: 50000 };
       case "code_200k": return { current: o.linesAdded || 0, target: 200000 };
+      case "code_1m": return { current: o.linesAdded || 0, target: 1000000 };
       // Token (OTel)
       case "token_1m": return { current: (o.tokensIn || 0) + (o.tokensOut || 0), target: 1000000 };
       case "token_10m": return { current: (o.tokensIn || 0) + (o.tokensOut || 0), target: 10000000 };
       case "token_100m": return { current: (o.tokensIn || 0) + (o.tokensOut || 0), target: 100000000 };
+      case "token_1b": return { current: (o.tokensIn || 0) + (o.tokensOut || 0), target: 1000000000 };
       // Cache (OTel) - show volume progress; ratio is a side-condition
       case "cache_100k": return { current: (o.tokensIn || 0) + (o.tokensCacheRead || 0), target: 100000 };
       case "cache_1m": return { current: (o.tokensIn || 0) + (o.tokensCacheRead || 0), target: 1000000 };
       case "cache_10m": return { current: (o.tokensIn || 0) + (o.tokensCacheRead || 0), target: 10000000 };
+      case "cache_100m": return { current: (o.tokensIn || 0) + (o.tokensCacheRead || 0), target: 100000000 };
       // Frugal (OTel) - show prompt progress; cost ceiling is a side-condition
       case "frugal_100p": return { current: c.promptsTotal || 0, target: 100 };
       case "frugal_500p": return { current: c.promptsTotal || 0, target: 500 };
@@ -852,7 +870,9 @@ const CLIENT_JS = `
   }
 
   function nextLevelProgress(xp, level) {
-    if (level >= 100) {
+    var maxB = BOUNDARIES[BOUNDARIES.length - 1];
+    var maxLvl = (maxB && maxB.level) || 200;
+    if (level >= maxLvl) {
       return { ratio: 1, isMaxed: true, label: "MAX (" + xp.toLocaleString() + " xp)" };
     }
     var cur = xpForLevel(level);

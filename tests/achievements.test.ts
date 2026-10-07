@@ -155,6 +155,40 @@ describe("achievements", () => {
       expect(newly).toContain("hatch_junior");
       expect(newly).toContain("hatch_hatchling");
       expect(newly).toContain("hatch_egg");
+      expect(newly).not.toContain("ascend_125");
+    });
+
+    it("ascend ladder fires at 125, 150, 175, 200", () => {
+      const s = freshState();
+      s.progress.level = 150;
+      const newly = checkAchievementsForEvent(s, "prompt", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("hatch_mythic");
+      expect(newly).toContain("ascend_125");
+      expect(newly).toContain("ascend_150");
+      expect(newly).not.toContain("ascend_175");
+      expect(newly).not.toContain("ascend_200");
+
+      s.progress.level = 200;
+      const newly200 = checkAchievementsForEvent(s, "prompt", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly200).toContain("ascend_175");
+      expect(newly200).toContain("ascend_200");
+    });
+
+    it("tool_250k and tool_500k fire at 250k and 500k tools", () => {
+      const s = freshState();
+      s.counters.toolUseTotal = 500_000;
+      const newly = checkAchievementsForEvent(s, "post_tool_use", {
+        sessionId: "s1",
+        now: Date.now(),
+      });
+      expect(newly).toContain("tool_250k");
+      expect(newly).toContain("tool_500k");
     });
 
     it("tool_5k fires at 5000 tool uses", () => {

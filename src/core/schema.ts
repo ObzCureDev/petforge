@@ -157,6 +157,20 @@ export const ACHIEVEMENT_IDS = [
   "quota_marathon_bronze",
   "quota_marathon_silver",
   "quota_marathon_gold",
+  // Ascent ladder (4 - level 100+ progression, unmedaled like hatch ladder)
+  "ascend_125",
+  "ascend_150",
+  "ascend_175",
+  "ascend_200",
+  // 100+ / Endgame Titanium & Mastery achievements (8)
+  "streak_200d",
+  "tool_250k",
+  "tool_500k",
+  "night_25k",
+  "refactor_1k",
+  "code_1m",
+  "token_1b",
+  "cache_100m",
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[number];
 
@@ -182,7 +196,7 @@ export interface Pet {
 export interface Progress {
   /** Cumulative XP. */
   xp: number;
-  /** 1..100. */
+  /** 1..200. */
   level: number;
   phase: Phase;
   pendingLevelUp: boolean;

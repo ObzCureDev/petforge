@@ -15,8 +15,8 @@ import { ACHIEVEMENTS } from "../src/core/achievements.js";
 import { ACHIEVEMENT_IDS } from "../src/core/schema.js";
 
 describe("V3.2 achievement registry hygiene", () => {
-  it("ACHIEVEMENT_IDS has exactly 52 entries (46 V3.2 + 6 V3.7 quota)", () => {
-    expect(ACHIEVEMENT_IDS.length).toBe(52);
+  it("ACHIEVEMENT_IDS has exactly 64 entries (46 V3.2 + 6 V3.7 quota + 12 level 100+)", () => {
+    expect(ACHIEVEMENT_IDS.length).toBe(64);
   });
 
   it("every ID in ACHIEVEMENT_IDS has a registry entry", () => {
@@ -36,6 +36,14 @@ describe("V3.2 achievement registry hygiene", () => {
       "hatch_mythic",
     ]);
     for (const id of hatchIds) {
+      expect(ACHIEVEMENTS[id].medal).toBeUndefined();
+    }
+  });
+
+  it("ascension ladder has 4 entries, none with a medal", () => {
+    const ascendIds = ACHIEVEMENT_IDS.filter((id) => id.startsWith("ascend_"));
+    expect(ascendIds).toEqual(["ascend_125", "ascend_150", "ascend_175", "ascend_200"]);
+    for (const id of ascendIds) {
       expect(ACHIEVEMENTS[id].medal).toBeUndefined();
     }
   });
@@ -68,7 +76,7 @@ describe("V3.2 achievement registry hygiene", () => {
     expect(ACHIEVEMENTS.quota_marathon_gold.xp).toBe(7_500);
   });
 
-  it("every family has 3 medal entries (streak has 4)", () => {
+  it("every family has expected medal entries including 100+ expansions", () => {
     const familyCount: Record<string, number> = {};
     for (const id of ACHIEVEMENT_IDS) {
       const def = ACHIEVEMENTS[id];
@@ -78,15 +86,15 @@ describe("V3.2 achievement registry hygiene", () => {
         familyCount[family] = (familyCount[family] || 0) + 1;
       }
     }
-    expect(familyCount.streak).toBe(4);
-    expect(familyCount.tool).toBe(3);
+    expect(familyCount.streak).toBe(5);
+    expect(familyCount.tool).toBe(5);
     expect(familyCount.marathon).toBe(3);
-    expect(familyCount.night).toBe(3);
+    expect(familyCount.night).toBe(4);
     expect(familyCount.polyglot).toBe(3);
-    expect(familyCount.refactor).toBe(3);
-    expect(familyCount.code).toBe(3);
-    expect(familyCount.token).toBe(3);
-    expect(familyCount.cache).toBe(3);
+    expect(familyCount.refactor).toBe(4);
+    expect(familyCount.code).toBe(4);
+    expect(familyCount.token).toBe(4);
+    expect(familyCount.cache).toBe(4);
     expect(familyCount.frugal).toBe(3);
     expect(familyCount.big).toBe(3); // big_spender - split() keeps the first segment
     expect(familyCount.pr).toBe(3);

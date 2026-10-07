@@ -4,14 +4,17 @@ import type { AchievementId, State } from "../schema.js";
 const TEN_K = 10_000;
 const FIFTY_K = 50_000;
 const TWO_HUNDRED_K = 200_000;
+const ONE_M_LINES = 1_000_000;
 
 const ONE_M_TOKENS = 1_000_000;
 const TEN_M_TOKENS = 10_000_000;
 const HUNDRED_M_TOKENS = 100_000_000;
+const ONE_B_TOKENS = 1_000_000_000;
 
 const CACHE_VOL_BRONZE = 100_000;
 const CACHE_VOL_SILVER = 1_000_000;
 const CACHE_VOL_GOLD = 10_000_000;
+const CACHE_VOL_PLATINUM = 100_000_000;
 const CACHE_RATIO_80 = 0.8;
 const CACHE_RATIO_90 = 0.9;
 
@@ -59,12 +62,14 @@ export function checkOtelAchievements(state: State): AchievementId[] {
   tryUnlock("code_10k", otel.linesAdded >= TEN_K);
   tryUnlock("code_50k", otel.linesAdded >= FIFTY_K);
   tryUnlock("code_200k", otel.linesAdded >= TWO_HUNDRED_K);
+  tryUnlock("code_1m", otel.linesAdded >= ONE_M_LINES);
 
   // Tokens (in + out)
   const tokens = otel.tokensIn + otel.tokensOut;
   tryUnlock("token_1m", tokens >= ONE_M_TOKENS);
   tryUnlock("token_10m", tokens >= TEN_M_TOKENS);
   tryUnlock("token_100m", tokens >= HUNDRED_M_TOKENS);
+  tryUnlock("token_1b", tokens >= ONE_B_TOKENS);
 
   // Cache: volume + ratio compound
   const cacheVolume = otel.tokensIn + otel.tokensCacheRead;
@@ -72,6 +77,7 @@ export function checkOtelAchievements(state: State): AchievementId[] {
   tryUnlock("cache_100k", cacheVolume >= CACHE_VOL_BRONZE && cacheRatio >= CACHE_RATIO_80);
   tryUnlock("cache_1m", cacheVolume >= CACHE_VOL_SILVER && cacheRatio >= CACHE_RATIO_80);
   tryUnlock("cache_10m", cacheVolume >= CACHE_VOL_GOLD && cacheRatio >= CACHE_RATIO_90);
+  tryUnlock("cache_100m", cacheVolume >= CACHE_VOL_PLATINUM && cacheRatio >= CACHE_RATIO_90);
 
   // Frugal: prompts >= N AND total cost <= ceiling
   const prompts = state.counters.promptsTotal;

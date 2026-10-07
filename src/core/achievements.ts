@@ -447,6 +447,102 @@ export const ACHIEVEMENTS: Readonly<Record<AchievementId, AchievementDef>> = {
     description: "Hit 95%+ session utilization 50 times.",
     medal: "gold",
   },
+
+  // Ascent phase ladder (level 100+ progression - unmedaled like hatch ladder)
+  ascend_125: {
+    id: "ascend_125",
+    name: "Ascent · Awakened",
+    xp: 30_000,
+    description: "Reach level 125 - awaken latent cosmic power beyond the mythic threshold.",
+  },
+  ascend_150: {
+    id: "ascend_150",
+    name: "Ascent · Transcendent",
+    xp: 50_000,
+    description: "Reach level 150 - your pet transcends digital reality into pure code energy.",
+  },
+  ascend_175: {
+    id: "ascend_175",
+    name: "Ascent · Sovereign",
+    xp: 75_000,
+    description: "Reach level 175 - supreme ruler of the terminal, feared by bugs.",
+  },
+  ascend_200: {
+    id: "ascend_200",
+    name: "Ascent · Singularity",
+    xp: 100_000,
+    description: "Reach the ultimate cap of level 200 - absolute PetForge immortality.",
+  },
+
+  // Streak 200d
+  streak_200d: {
+    id: "streak_200d",
+    name: "Streak · 200 Days",
+    xp: 30_000,
+    description: "Use Claude Code on 200 consecutive days - unwavering dedication.",
+    medal: "platinum",
+  },
+
+  // Tool count 250k & 500k
+  tool_250k: {
+    id: "tool_250k",
+    name: "Tool · 250K",
+    xp: 30_000,
+    description: "Use 250,000 tools total - hyper-automation grandmaster.",
+    medal: "platinum",
+  },
+  tool_500k: {
+    id: "tool_500k",
+    name: "Tool · 500K",
+    xp: 30_000,
+    description: "Use 500,000 tools total - half a million tool invocations.",
+    medal: "platinum",
+  },
+
+  // Night 25k
+  night_25k: {
+    id: "night_25k",
+    name: "Night · 25K",
+    xp: 30_000,
+    description: "Trigger 25,000 events between 10pm and 2am - nocturnal architect.",
+    medal: "platinum",
+  },
+
+  // Refactor 1k
+  refactor_1k: {
+    id: "refactor_1k",
+    name: "Refactor · 1K",
+    xp: 30_000,
+    description: "Use 1,000+ tools in a single session - colossal refactoring storm.",
+    medal: "platinum",
+  },
+
+  // Code 1m
+  code_1m: {
+    id: "code_1m",
+    name: "Code · 1M lines",
+    xp: 30_000,
+    description: "Add 1,000,000 lines of code across all sessions (OTel collector required).",
+    medal: "platinum",
+  },
+
+  // Token 1b
+  token_1b: {
+    id: "token_1b",
+    name: "Token · 1B",
+    xp: 30_000,
+    description: "Process 1,000,000,000 tokens (input + output combined).",
+    medal: "platinum",
+  },
+
+  // Cache 100m
+  cache_100m: {
+    id: "cache_100m",
+    name: "Cache · 100M",
+    xp: 30_000,
+    description: "Reach >=90% prompt-cache hit rate over 100,000,000+ tokens.",
+    medal: "platinum",
+  },
 } as const;
 
 // ---------- Core helpers ----------
@@ -511,6 +607,10 @@ export function checkAchievementsForEvent(
     tryUnlock("hatch_adult", lvl >= 30);
     tryUnlock("hatch_elder", lvl >= 60);
     tryUnlock("hatch_mythic", lvl >= 100);
+    tryUnlock("ascend_125", lvl >= 125);
+    tryUnlock("ascend_150", lvl >= 150);
+    tryUnlock("ascend_175", lvl >= 175);
+    tryUnlock("ascend_200", lvl >= 200);
   };
 
   const checkStreaks = (): void => {
@@ -519,6 +619,7 @@ export function checkAchievementsForEvent(
     tryUnlock("streak_7d", d >= 7);
     tryUnlock("streak_30d", d >= 30);
     tryUnlock("streak_100d", d >= 100);
+    tryUnlock("streak_200d", d >= 200);
   };
 
   const checkTools = (): void => {
@@ -526,6 +627,8 @@ export function checkAchievementsForEvent(
     tryUnlock("tool_5k", t >= 5_000);
     tryUnlock("tool_25k", t >= 25_000);
     tryUnlock("tool_100k", t >= 100_000);
+    tryUnlock("tool_250k", t >= 250_000);
+    tryUnlock("tool_500k", t >= 500_000);
   };
 
   const checkNight = (): void => {
@@ -533,6 +636,7 @@ export function checkAchievementsForEvent(
     tryUnlock("night_200", n >= 200);
     tryUnlock("night_1k", n >= 1_000);
     tryUnlock("night_5k", n >= 5_000);
+    tryUnlock("night_25k", n >= 25_000);
   };
 
   // Marathon - uses the active session's duration. Triggers from any
@@ -562,6 +666,7 @@ export function checkAchievementsForEvent(
     tryUnlock("refactor_100", t >= 100);
     tryUnlock("refactor_250", t >= 250);
     tryUnlock("refactor_500", t >= 500);
+    tryUnlock("refactor_1k", t >= 1_000);
   };
 
   switch (event) {
@@ -634,6 +739,10 @@ export function backfillEarnedAchievements(state: State, now: number): Achieveme
   tryUnlock("hatch_adult", lvl >= 30);
   tryUnlock("hatch_elder", lvl >= 60);
   tryUnlock("hatch_mythic", lvl >= 100);
+  tryUnlock("ascend_125", lvl >= 125);
+  tryUnlock("ascend_150", lvl >= 150);
+  tryUnlock("ascend_175", lvl >= 175);
+  tryUnlock("ascend_200", lvl >= 200);
 
   // Streak
   const d = state.counters.streakDays;
@@ -641,18 +750,22 @@ export function backfillEarnedAchievements(state: State, now: number): Achieveme
   tryUnlock("streak_7d", d >= 7);
   tryUnlock("streak_30d", d >= 30);
   tryUnlock("streak_100d", d >= 100);
+  tryUnlock("streak_200d", d >= 200);
 
   // Tool total
   const t = state.counters.toolUseTotal;
   tryUnlock("tool_5k", t >= 5_000);
   tryUnlock("tool_25k", t >= 25_000);
   tryUnlock("tool_100k", t >= 100_000);
+  tryUnlock("tool_250k", t >= 250_000);
+  tryUnlock("tool_500k", t >= 500_000);
 
   // Night events
   const n = state.counters.nightOwlEvents;
   tryUnlock("night_200", n >= 200);
   tryUnlock("night_1k", n >= 1_000);
   tryUnlock("night_5k", n >= 5_000);
+  tryUnlock("night_25k", n >= 25_000);
 
   // Marathon, polyglot, refactor — max across active sessions.
   const sessions = Object.values(state.counters.activeSessions);
@@ -673,6 +786,7 @@ export function backfillEarnedAchievements(state: State, now: number): Achieveme
   tryUnlock("refactor_100", maxToolPerSession >= 100);
   tryUnlock("refactor_250", maxToolPerSession >= 250);
   tryUnlock("refactor_500", maxToolPerSession >= 500);
+  tryUnlock("refactor_1k", maxToolPerSession >= 1_000);
 
   return newly;
 }

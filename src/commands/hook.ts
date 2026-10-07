@@ -26,6 +26,7 @@ import {
   isNightOwlHour,
   updateStreak,
 } from "../core/achievements.js";
+import { checkOtelAchievements } from "../core/otel/achievements.js";
 import { generatePet } from "../core/pet-engine.js";
 import type { AchievementId, State } from "../core/schema.js";
 import { logHookError, recoverCorruptState, withStateLock } from "../core/state.js";
@@ -240,6 +241,7 @@ export function applyHookEvent(
   // gives backfillEarnedAchievements a chance to inspect every
   // pre-prune session for polyglot/refactor too.
   backfillEarnedAchievements(state, now);
+  checkOtelAchievements(state);
   pruneStaleSessions(state, now);
   const sessionId = payload.session_id ?? "unknown";
   const oldLevel = state.progress.level;

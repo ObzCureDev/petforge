@@ -52,6 +52,29 @@ describe("checkOtelAchievements", () => {
     expect(newly).toContain("token_1m");
   });
 
+  it("token_1b fires at 1B tokens (in+out)", () => {
+    const s = withOtel();
+    otelOf(s).tokensIn = 600_000_000;
+    otelOf(s).tokensOut = 400_000_000;
+    const newly = checkOtelAchievements(s);
+    expect(newly).toContain("token_1b");
+  });
+
+  it("code_1m fires at 1M lines added", () => {
+    const s = withOtel();
+    otelOf(s).linesAdded = 1_000_000;
+    const newly = checkOtelAchievements(s);
+    expect(newly).toContain("code_1m");
+  });
+
+  it("cache_100m requires ratio >= 0.90 AND >= 100M input+cache_read", () => {
+    const s = withOtel();
+    otelOf(s).tokensIn = 10_000_000;
+    otelOf(s).tokensCacheRead = 90_000_000;
+    const newly = checkOtelAchievements(s);
+    expect(newly).toContain("cache_100m");
+  });
+
   it("cache_100k requires ratio >= 0.80 AND >= 100k input+cache_read", () => {
     const s = withOtel();
     otelOf(s).tokensIn = 20_000;

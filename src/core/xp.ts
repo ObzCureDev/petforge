@@ -12,9 +12,11 @@
  *     30       30_000
  *     60      100_000
  *    100    1_000_000
+ *    150    5_000_000
+ *    200   20_000_000
  *
- * Levels are capped at 100 for display purposes; cumulative XP is **not**
- * capped — the user can keep accumulating XP past 1M.
+ * Levels are capped at 200 for display purposes; cumulative XP is **not**
+ * capped — the user can keep accumulating XP past 20M.
  *
  * Phase mapping (V1.1):
  *     egg         1..4
@@ -22,7 +24,7 @@
  *     junior     12..29
  *     adult      30..59
  *     elder      60..99
- *     mythic       100
+ *     mythic     >= 100
  */
 
 import type { Phase } from "./schema.js";
@@ -33,16 +35,18 @@ export const LEVEL_BOUNDARIES = [
   { level: 30, xp: 30_000 },
   { level: 60, xp: 100_000 },
   { level: 100, xp: 1_000_000 },
+  { level: 150, xp: 5_000_000 },
+  { level: 200, xp: 20_000_000 },
 ] as const;
 
-const MAX_LEVEL = 100;
-const MAX_LEVEL_XP = 1_000_000;
+export const MAX_LEVEL = 200;
+export const MAX_LEVEL_XP = 20_000_000;
 
 /**
  * XP required to reach the start of `level`.
  *
  * - level <= 1 returns 0
- * - level >= 100 returns 1_000_000
+ * - level >= 200 returns 20_000_000
  * - between boundaries, interpolated with a `t^1.55` curve
  */
 export function xpForLevel(level: number): number {
@@ -64,9 +68,9 @@ export function xpForLevel(level: number): number {
 }
 
 /**
- * Highest level L (1..100) such that `xpForLevel(L) <= xp`.
+ * Highest level L (1..200) such that `xpForLevel(L) <= xp`.
  *
- * Linear scan — only 100 iterations, trivially correct.
+ * Linear scan — only 200 iterations, trivially correct.
  */
 export function levelForXp(xp: number): number {
   if (xp <= 0) return 1;
@@ -87,7 +91,7 @@ export function phaseForLevel(level: number): Phase {
 
 export interface LevelProgress {
   currentLevel: number;
-  /** `currentLevel + 1`, or 100 when already maxed. */
+  /** `currentLevel + 1`, or 200 when already maxed. */
   nextLevel: number;
   currentLevelXp: number;
   /** XP required to reach `nextLevel`, or `MAX_LEVEL_XP` if maxed. */
